@@ -58,6 +58,7 @@ public class ShieldWidget : MonoBehaviour
 
     bool bob;
     float bobLength = 1.0f;
+    float bobOffset = 0f;
     float bobSizeXMod = 0.5f;      //RECOMMEND RANGE OF 0.5-1.5
     float bobSizeYMod = 1.5f;      //RECOMMEND RANGE OF 0.5-1.5
     float moveSmoothSpeed = 1;        //RECOMMEND RANGE OF 1-3
@@ -90,6 +91,7 @@ public class ShieldWidget : MonoBehaviour
     Vector2 recoilCurrent = Vector2.zero;
 
     public Color Tint { get; set; } = Color.white;
+    public Vector2 Position { get; set; } = Vector2.zero;
     public Vector2 Offset { get; set; } = Vector2.zero;
     public Vector2 Scale { get; set; } = Vector2.one;
 
@@ -152,20 +154,21 @@ public class ShieldWidget : MonoBehaviour
         {
             bob = settings.GetValue<bool>("Bob", "EnableBob");
             bobLength = settings.GetValue<float>("Bob", "Length");
-            bobSizeXMod = settings.GetValue<float>("Bob", "SizeX");
-            bobSizeYMod = settings.GetValue<float>("Bob", "SizeY");
-            moveSmoothSpeed = settings.GetValue<float>("Bob", "SpeedMove")*2;
-            bobSmoothSpeed = settings.GetValue<float>("Bob", "SpeedState")*250;
+            bobOffset = settings.GetValue<float>("Bob", "Offset");
+            bobSizeXMod = settings.GetValue<float>("Bob", "SizeX") * 2;
+            bobSizeYMod = settings.GetValue<float>("Bob", "SizeY") * 2;
+            moveSmoothSpeed = settings.GetValue<float>("Bob", "SpeedMove")*4;
+            bobSmoothSpeed = settings.GetValue<float>("Bob", "SpeedState")*500;
             bobShape = settings.GetValue<int>("Bob", "Shape") * 0.5f;
             bobWhileIdle = settings.GetValue<bool>("Bob", "BobWhileIdle");
         }
         if (change.HasChanged("Inertia"))
         {
             inertia = settings.GetValue<bool>("Inertia", "EnableInertia");
-            inertiaScale = settings.GetValue<float>("Inertia", "Scale") * 250;
-            inertiaSpeed = settings.GetValue<float>("Inertia", "Speed") * 250;
-            inertiaForwardScale = settings.GetValue<float>("Inertia", "ForwardDepth");
-            inertiaForwardSpeed = settings.GetValue<float>("Inertia", "ForwardSpeed")*0.1f;
+            inertiaScale = settings.GetValue<float>("Inertia", "Scale") * 500;
+            inertiaSpeed = settings.GetValue<float>("Inertia", "Speed") * 500;
+            inertiaForwardScale = settings.GetValue<float>("Inertia", "ForwardDepth") * 0.2f;
+            inertiaForwardSpeed = settings.GetValue<float>("Inertia", "ForwardSpeed") * 0.2f;
         }
         if (change.HasChanged("Recoil"))
         {
@@ -289,6 +292,34 @@ public class ShieldWidget : MonoBehaviour
             if (whenCasting == 0 && (GameManager.Instance.PlayerSpellCasting.IsPlayingAnim || GameManager.Instance.PlayerEffectManager.HasReadySpell))
                 return;
 
+            DaggerfallUI.DrawTextureWithTexCoords(GetShieldRect(), shieldTexture, curAnimRect, true, GameManager.Instance.WeaponManager.ScreenWeapon.Tint);
+        }
+    }
+
+    private void LateUpdate()
+    {
+        Position = Vector2.zero;
+        Offset = Vector2.zero;
+        Scale = Vector2.zero;
+
+        if (shieldTexture == null || GameManager.Instance.PlayerEntity == null)
+            return;
+
+        bool attacking = GameManager.Instance.WeaponManager.ScreenWeapon.IsAttacking();
+
+        //if off-hand is shield
+        DaggerfallUnityItem itemLeftHand = GameManager.Instance.PlayerEntity.ItemEquipTable.GetItem(EquipSlots.LeftHand);
+        if (itemLeftHand != null)
+        {
+            if (!itemLeftHand.IsShield || GameManager.Instance.WeaponManager.EquipCountdownLeftHand > 0 || GameManager.Instance.ClimbingMotor.IsClimbing || GameManager.IsGamePaused || SaveLoadManager.Instance.LoadInProgress)
+                return;
+
+            if (whenSheathed == 0 && GameManager.Instance.WeaponManager.Sheathed)
+                return;
+
+            if (whenCasting == 0 && (GameManager.Instance.PlayerSpellCasting.IsPlayingAnim || GameManager.Instance.PlayerEffectManager.HasReadySpell))
+                return;
+
             if (DaggerfallUI.Instance.CustomScreenRect != null)
                 screenRect = DaggerfallUI.Instance.CustomScreenRect.Value;
             else
@@ -365,7 +396,7 @@ public class ShieldWidget : MonoBehaviour
             }
 
             //adjust shield position when attacking
-            if (GameManager.Instance.WeaponManager.ScreenWeapon.IsAttacking())
+            if (attacking)
             {
                 if (!attacked)
                 {
@@ -387,11 +418,13 @@ public class ShieldWidget : MonoBehaviour
             current = Vector3.MoveTowards(current, target, Time.deltaTime*stanceSpeed);
             shieldPositionCurrent = new Rect(current.x, current.y, shieldPositionTarget.width, shieldPositionTarget.height);
 
-            Offset = Vector2.zero;
-            Scale = Vector2.one;
+            //SCALE  TO SPEED AND MOVEMENT
+            float currentSpeed = GameManager.Instance.PlayerMotor.Speed;
+            float baseSpeed = GameManager.Instance.SpeedChanger.GetBaseSpeed();
+            float speed = currentSpeed / baseSpeed;
 
             //start of weapon bob code
-            if (bob && shieldPositionCurrent == shieldPositionTarget)
+            if (bob && !attacking)
             {
                 //SHAPE OF MOVE BOB
                 float bobYOffset = bobShape;
@@ -403,9 +436,7 @@ public class ShieldWidget : MonoBehaviour
                 moveSmooth = Mathf.MoveTowards(moveSmooth, move, Time.deltaTime * moveSmoothSpeed);
 
                 //SCALE BOB TO SPEED AND MOVEMENT
-                float currentSpeed = GameManager.Instance.PlayerMotor.Speed;
-                float baseSpeed = GameManager.Instance.SpeedChanger.GetBaseSpeed();
-                float bob = currentSpeed / baseSpeed;
+                float bob = speed;
 
                 //DAMPEN BOB WHEN CROUCHED
                 if (GameManager.Instance.PlayerMotor.IsCrouching)
@@ -419,7 +450,7 @@ public class ShieldWidget : MonoBehaviour
                 if (GameManager.Instance.PlayerMotor.IsStandingStill)
                 {
                     if (bobWhileIdle)
-                        bob *= 0.2f;
+                        bob = 0.1f;
                     else
                         bob = 0;
                 }
@@ -427,23 +458,28 @@ public class ShieldWidget : MonoBehaviour
                 //HORIZONTAL BOB
                 float bobXSpeed = baseSpeed * 1.25f * bob * bobLength; //SYNC IT WITH THE FOOTSTEP SOUNDS
                 float bobYSpeed = bobXSpeed * 2f; //MAKE IT A MULTIPLE OF THE HORIZONTAL BOB SPEED
-                Vector2 bobSize = new Vector2(screenRect.width * 0.1f * bob * bobSizeXMod, screenRect.height * 0.05f * bob * bobSizeYMod);
+                float factor = 0.01f;
+                Vector2 bobSize = new Vector2(screenRect.width * factor * bob * bobSizeXMod, screenRect.height * factor * bob * bobSizeYMod);
 
                 //GET CURRENT BOB VALUES
-                Vector2 bobRaw = new Vector2(Mathf.Sin(0.5f + Time.time * bobXSpeed) * -bobSize.x, (1f - Mathf.Sin(0.5f + bobYOffset + Time.time * bobYSpeed)) * bobSize.y);
+                Vector2 bobRaw = new Vector2(Mathf.Sin(bobOffset + Time.time * bobXSpeed) * -bobSize.x, (1-Mathf.Sin(bobOffset + bobYOffset + Time.time * bobYSpeed)) * bobSize.y);
 
                 //SMOOTH TRANSITIONS BETWEEN WALKING, RUNNING, CROUCHING, ETC
                 bobSmooth = Vector2.MoveTowards(bobSmooth, bobRaw, Time.deltaTime * bobSmoothSpeed) * moveSmooth;
 
-                Offset += bobSmooth;
+                Position += bobSmooth;
             }
 
             //inertia
-            if (inertia)
+            if (inertia && !attacking)
             {
                 float mod = 1;
 
-                inertiaTarget = new Vector2(-(InputManager.Instance.LookX + InputManager.Instance.Horizontal)* 0.5f * inertiaScale, InputManager.Instance.LookY * inertiaScale);
+                if (GameManager.Instance.PlayerMouseLook.cursorActive)
+                    inertiaTarget = new Vector2(-InputManager.Instance.Horizontal* 0.5f * inertiaScale, 0);
+                else
+                    inertiaTarget = new Vector2(-(InputManager.Instance.LookX + InputManager.Instance.Horizontal)* 0.5f * inertiaScale, InputManager.Instance.LookY * inertiaScale);
+
                 inertiaSpeedMod = Vector2.Distance(inertiaCurrent,inertiaTarget) / inertiaScale;
 
                 if (inertiaTarget != Vector2.zero)
@@ -451,26 +487,27 @@ public class ShieldWidget : MonoBehaviour
 
                 inertiaCurrent = Vector2.MoveTowards(inertiaCurrent, inertiaTarget, Time.deltaTime * inertiaSpeed * inertiaSpeedMod * mod);
 
-                Offset += inertiaCurrent;
+                Position += inertiaCurrent;
 
                 mod = 1;
 
                 if (inertiaForwardTarget != Vector2.zero)
                     mod = 3;
 
-                inertiaForwardTarget = new Vector2(InputManager.Instance.Vertical, InputManager.Instance.Vertical) * 0.05f * inertiaForwardScale * (GameManager.Instance.PlayerMotor.Speed/ GameManager.Instance.SpeedChanger.GetBaseSpeed());
+                inertiaForwardTarget = new Vector2(InputManager.Instance.Vertical, InputManager.Instance.Vertical) * inertiaForwardScale * speed;
                 inertiaForwardCurrent = Vector2.MoveTowards(inertiaForwardCurrent, inertiaForwardTarget, Time.deltaTime * inertiaForwardSpeed * mod);
 
                 Scale += inertiaForwardCurrent;
+                Offset += inertiaForwardCurrent;
             }
 
             if (recoil)
             {
+                //If recoil is not zero, move it towards zero
                 if (recoilCurrent != Vector2.zero)
                 {
                     float mod = recoilCurrent.magnitude / 0.5f;
                     recoilCurrent = Vector2.MoveTowards(recoilCurrent, Vector2.zero, Time.deltaTime * recoilSpeed * mod);
-                    //recoilCurrent = Vector2.MoveTowards(recoilCurrent, Vector2.zero, Time.deltaTime * recoilSpeed);
                 }
 
                 Vector2 recoilFinal = recoilCurrent * recoilScale;
@@ -478,24 +515,25 @@ public class ShieldWidget : MonoBehaviour
                 recoilFinal = new Vector2(Mathf.Clamp(recoilFinal.x,0,0.5f), Mathf.Clamp(recoilFinal.y, 0, 0.5f));
 
                 Scale += recoilFinal;
-
-                Vector2 centerOffset = new Vector2(shieldTexture.width* recoilFinal.x,shieldTexture.height* recoilFinal.y);
-                Offset -= centerOffset;
+                Offset += recoilFinal;
             }
-
-            DaggerfallUI.DrawTextureWithTexCoords(GetShieldRect(), shieldTexture, curAnimRect, true, GameManager.Instance.WeaponManager.ScreenWeapon.Tint);
         }
     }
+
     public Rect GetShieldRect()
     {
-        if (Offset != Vector2.zero || Scale != Vector2.one)
+        if (Position != Vector2.zero || Scale != Vector2.zero || Offset != Vector2.zero)
         {
             Rect shieldPositionOffset = shieldPositionCurrent;
 
-            shieldPositionOffset.x += Offset.x;
-            shieldPositionOffset.y += Offset.y;
-            shieldPositionOffset.width *= Scale.x;
-            shieldPositionOffset.height *= Scale.y;
+            shieldPositionOffset.x += Position.x;
+            shieldPositionOffset.y += Position.y;
+
+            shieldPositionOffset.width += shieldPositionOffset.width * Scale.x;
+            shieldPositionOffset.height += shieldPositionOffset.height * Scale.y;
+
+            shieldPositionOffset.x += shieldPositionOffset.width * Offset.x;
+            shieldPositionOffset.y += shieldPositionOffset.height * Offset.y;
 
             //stop the texture from going higher than its bottom edge
             shieldPositionOffset.y = Mathf.Clamp(shieldPositionOffset.y,screenRect.height-shieldPositionOffset.height,screenRect.height);
