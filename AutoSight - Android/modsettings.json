@@ -1,0 +1,148 @@
+{
+    "Version": null,
+    "Sections": [
+        {
+            "Name": "Activation",
+            "Description": "Configure when to start acquiring a target",
+            "IsAdvanced": false,
+            "Keys": [
+                {
+                    "Options": [
+                        "On Swing Weapon",
+                        "On Center View"
+                    ],
+                    "Value": 1,
+                    "Name": "Condition",
+                    "Description": "",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.MultipleChoiceKey"
+                },
+                {
+                    "Min": 0.0,
+                    "Max": 0.5,
+                    "Value": 0.2,
+                    "Name": "InputTargetThreshold",
+                    "Description": "The maximum value of view input where acquiring a target is allowed",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderFloatKey"
+                },
+                {
+                    "Min": 0.5,
+                    "Max": 1.0,
+                    "Value": 0.8,
+                    "Name": "InputBreakThreshold",
+                    "Description": "The minimum value of view input where the auto-sight detaches from the target",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderFloatKey"
+                }
+            ],
+            "$version": "v1"
+        },
+        {
+            "Name": "View",
+            "Description": "Configure camera behavior when a target is acquired",
+            "IsAdvanced": false,
+            "Keys": [
+                {
+                    "Min": 1,
+                    "Max": 10,
+                    "Value": 5,
+                    "Name": "Speed",
+                    "Description": "The maximum speed of the auto-sighting",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderIntKey"
+                },
+                {
+                    "Min": 1,
+                    "Max": 50,
+                    "Value": 25,
+                    "Name": "Softzone",
+                    "Description": "Angle threshold for dampening speed based on FOV.",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderIntKey"
+                }
+            ],
+            "$version": "v1"
+        },
+        {
+            "Name": "Targeting",
+            "Description": "Configure the ease of acquiring a target",
+            "IsAdvanced": false,
+            "Keys": [
+                {
+                    "Min": 1,
+                    "Max": 100,
+                    "Value": 50,
+                    "Name": "Range",
+                    "Description": "Distance threshold for valid targets",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderIntKey"
+                },
+                {
+                    "Min": 1,
+                    "Max": 50,
+                    "Value": 25,
+                    "Name": "Radius",
+                    "Description": "Angle threshold for valid targets based on FOV",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderIntKey"
+                },
+                {
+                    "Min": 1,
+                    "Max": 4,
+                    "Value": 2,
+                    "Name": "Interval",
+                    "Description": "Time between updates when seeking a target. Multiple of 0.0625s",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderIntKey"
+                }
+            ],
+            "$version": "v1"
+        },
+        {
+            "Name": "Feedback",
+            "Description": "Toggle state messages",
+            "IsAdvanced": false,
+            "Keys": [
+                {
+                    "Value": true,
+                    "Name": "OnTargetAcquired",
+                    "Description": "Show a message when a target is acquired",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.ToggleKey"
+                },
+                {
+                    "Options": [
+                        "None",
+                        "Widget",
+                        "Crosshair"
+                    ],
+                    "Value": 1,
+                    "Name": "Indicator",
+                    "Description": "Show an icon indicating the status of auto-sight",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.MultipleChoiceKey"
+                },
+                {
+                    "Min": 0.0,
+                    "Max": 1.0,
+                    "Value": 0.8,
+                    "Name": "WidgetOffsetX",
+                    "Description": "Relative horizontal screen position of the widget",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderFloatKey"
+                },
+                {
+                    "Min": 0.0,
+                    "Max": 1.0,
+                    "Value": 0.8,
+                    "Name": "WidgetOffsetY",
+                    "Description": "Relative vertical screen position of the widget",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderFloatKey"
+                }
+            ],
+            "$version": "v1"
+        }
+    ]
+}
