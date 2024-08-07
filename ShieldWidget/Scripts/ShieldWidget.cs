@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using UnityEngine;
+using System.Collections;
 using DaggerfallWorkshop;
 using DaggerfallWorkshop.Game;
 using DaggerfallWorkshop.Game.Serialization;
@@ -48,11 +49,16 @@ public class ShieldWidget : MonoBehaviour
     float weaponOffsetHeightLast;
 
     //FPSWeaponMovement.GetSettings
+    bool lockAspectRatio;
+
+    bool stepTransforms;
+    int stepLength = 8;
+    int stepCondition = 0;
 
     float offsetX = 0.8f;           //distance from the texture's left edge the center of the screen
     float offsetY = 0.6f;           //distance from the texture's bottom edge to the bottom of the screen
     float scale = 1f;
-    float stanceSpeed = 100f;
+    float offsetSpeed = 100f;
     int whenSheathed;
     int whenCasting;
 
@@ -78,6 +84,11 @@ public class ShieldWidget : MonoBehaviour
     float recoilSpeed = 1;
     public int recoilCondition = 0;        //SHIELD HIT, SHIELD MISS, SHIELD ATTACK, ANY HIT, ANY MISS, ANY ATTACK
 
+    bool animated;
+    float animationTime;
+    int animationDirection;
+    IEnumerator animating;
+
     //PERSISTENT VARIABLES FOR THE SMOOTHING
     float moveSmooth = 0;
     Vector2 bobSmooth = Vector2.zero;
@@ -98,9 +109,16 @@ public class ShieldWidget : MonoBehaviour
     bool attacked;
     bool sheathed;
     bool spelled;
-    int lastIndex = -1;
+    int lastTemplate = -1;
 
     bool flipped;
+
+    int conditionPrevious;
+    int conditionThresholdUpper = 60;
+    int conditionThresholdLower = 30;
+
+    int indexCurrent;
+    int frameCurrent;
 
     void Awake()
     {
@@ -146,9 +164,13 @@ public class ShieldWidget : MonoBehaviour
             offsetX = settings.GetValue<float>("Shield", "OffsetHorizontal") * -1f + 1;
             offsetY = settings.GetValue<float>("Shield", "OffsetVertical") * 0.5f + 0.5f;
             scale = settings.GetValue<float>("Shield", "Scale");
-            stanceSpeed = settings.GetValue<float>("Shield", "StanceSpeed") * 1000;
+            offsetSpeed = settings.GetValue<float>("Shield", "Speed") * 1000;
             whenSheathed = settings.GetValue<int>("Shield", "WhenSheathed");
             whenCasting = settings.GetValue<int>("Shield", "WhenCasting");
+            lockAspectRatio = settings.GetValue<bool>("Shield", "LockAspectRatio");
+            conditionThresholdUpper = settings.GetValue<int>("Shield", "ConditionThresholdUpper");
+            conditionThresholdLower = settings.GetValue<int>("Shield", "ConditionThresholdLower");
+
         }
         if (change.HasChanged("Bob"))
         {
@@ -177,6 +199,18 @@ public class ShieldWidget : MonoBehaviour
             recoilSpeed = settings.GetValue<float>("Recoil", "Speed")*0.5f;
             recoilCondition = settings.GetValue<int>("Recoil", "Condition");
         }
+        if (change.HasChanged("Step"))
+        {
+            stepTransforms = settings.GetValue<bool>("Step", "EnableStep");
+            stepLength = settings.GetValue<int>("Step", "Length") * 16;
+            stepCondition = settings.GetValue<int>("Step", "Condition");
+        }
+        if (change.HasChanged("Animation"))
+        {
+            animated = settings.GetValue<bool>("Animation", "EnableAnimation");
+            animationTime = 1-(settings.GetValue<float>("Animation", "Speed")*0.5f);
+            animationDirection = settings.GetValue<int>("Animation", "Direction");
+        }
 
         //if off-hand is shield
         DaggerfallUnityItem itemLeftHand = GameManager.Instance.PlayerEntity.ItemEquipTable.GetItem(EquipSlots.LeftHand);
@@ -187,21 +221,28 @@ public class ShieldWidget : MonoBehaviour
     //Fill in the shieldTextures array with all the textures
     void InitializeShieldTextures()
     {
-        shieldTextures = new Texture2D[40];
+        shieldTextures = new Texture2D[600];
         int archive = 700;
         int record = 0;
         int frame = 0;
-        for (int i = 0; i < 40; i++)
+        for (int i = 0; i < 600; i++)
         {
             Texture2D texture;
             DaggerfallWorkshop.Utility.AssetInjection.TextureReplacement.TryImportTexture(archive, record, frame, out texture);
             shieldTextures[i] = texture;
 
-            if (frame == 9)
+            if (frame == 4)
             {
                 frame = 0;
-                record++;
-            } else
+                if (record == 29)
+                {
+                    record = 0;
+                    archive++;
+                }
+                else
+                    record++;
+            }
+            else
                 frame++;
         }
         shieldTexture = shieldTextures[0];
@@ -211,7 +252,7 @@ public class ShieldWidget : MonoBehaviour
     //Only run when the shield has changed
     void UpdateShieldTextures(DaggerfallUnityItem shield)
     {
-        //shield textures are placed in array alphabetically so we have to work with that
+        Debug.Log("Updating shield textures");
         int shieldType = 0;
         int shieldMaterial = 0;
         switch (shield.TemplateIndex)
@@ -220,13 +261,13 @@ public class ShieldWidget : MonoBehaviour
                 shieldType = 0;
                 break;
             case (int)Armor.Round_Shield:
-                shieldType = 10;
+                shieldType = 150;
                 break;
             case (int)Armor.Kite_Shield:
-                shieldType = 20;
+                shieldType = 300;
                 break;
             case (int)Armor.Tower_Shield:
-                shieldType = 30;
+                shieldType = 450;
                 break;
         }
         switch (shield.NativeMaterialValue)
@@ -238,38 +279,49 @@ public class ShieldWidget : MonoBehaviour
                 shieldMaterial = 0;
                 break;
             case (int)ArmorMaterialTypes.Iron:
-                shieldMaterial = 1;
+                shieldMaterial = 5;
                 break;
             case (int)ArmorMaterialTypes.Steel:
-                shieldMaterial = 2;
+                shieldMaterial = 10;
                 break;
             case (int)ArmorMaterialTypes.Silver:
                 shieldMaterial = 0;
                 break;
             case (int)ArmorMaterialTypes.Elven:
-                shieldMaterial = 3;
+                shieldMaterial = 15;
                 break;
             case (int)ArmorMaterialTypes.Dwarven:
-                shieldMaterial = 4;
+                shieldMaterial = 20;
                 break;
             case (int)ArmorMaterialTypes.Mithril:
-                shieldMaterial = 5;
+                shieldMaterial = 25;
                 break;
             case (int)ArmorMaterialTypes.Adamantium:
-                shieldMaterial = 6;
+                shieldMaterial = 30;
                 break;
             case (int)ArmorMaterialTypes.Ebony:
-                shieldMaterial = 7;
+                shieldMaterial = 35;
                 break;
             case (int)ArmorMaterialTypes.Orcish:
-                shieldMaterial = 8;
+                shieldMaterial = 40;
                 break;
             case (int)ArmorMaterialTypes.Daedric:
-                shieldMaterial = 9;
+                shieldMaterial = 45;
                 break;
         }
 
-        shieldTexture = shieldTextures[shieldType+shieldMaterial];
+        int conditionCurrent = shield.ConditionPercentage;
+
+        if (conditionCurrent <= conditionThresholdLower)
+            shieldMaterial += 100;
+        else if (conditionCurrent <= conditionThresholdUpper)
+            shieldMaterial += 50;
+
+        conditionPrevious = conditionCurrent;
+
+        indexCurrent = shieldType + shieldMaterial;
+
+        shieldTexture = shieldTextures[indexCurrent+frameCurrent];
     }
 
     private void OnGUI()
@@ -283,13 +335,13 @@ public class ShieldWidget : MonoBehaviour
         DaggerfallUnityItem itemLeftHand = GameManager.Instance.PlayerEntity.ItemEquipTable.GetItem(EquipSlots.LeftHand);
         if (itemLeftHand != null)
         {
-            if (!itemLeftHand.IsShield || GameManager.Instance.WeaponManager.EquipCountdownLeftHand > 0 || GameManager.Instance.ClimbingMotor.IsClimbing || GameManager.IsGamePaused || SaveLoadManager.Instance.LoadInProgress)
-                return;
-
-            if (whenSheathed == 0 && GameManager.Instance.WeaponManager.Sheathed)
-                return;
-
-            if (whenCasting == 0 && (GameManager.Instance.PlayerSpellCasting.IsPlayingAnim || GameManager.Instance.PlayerEffectManager.HasReadySpell))
+            if (!itemLeftHand.IsShield ||
+                GameManager.Instance.WeaponManager.EquipCountdownLeftHand > 0 ||
+                GameManager.Instance.ClimbingMotor.IsClimbing ||
+                GameManager.IsGamePaused ||
+                SaveLoadManager.Instance.LoadInProgress ||
+                (whenSheathed == 0 && (GameManager.Instance.WeaponManager.Sheathed || !GameManager.Instance.WeaponManager.ScreenWeapon.ShowWeapon)) ||
+                (whenCasting == 0 && (GameManager.Instance.PlayerSpellCasting.IsPlayingAnim || GameManager.Instance.PlayerEffectManager.HasReadySpell)))
                 return;
 
             DaggerfallUI.DrawTextureWithTexCoords(GetShieldRect(), shieldTexture, curAnimRect, true, GameManager.Instance.WeaponManager.ScreenWeapon.Tint);
@@ -311,13 +363,18 @@ public class ShieldWidget : MonoBehaviour
         DaggerfallUnityItem itemLeftHand = GameManager.Instance.PlayerEntity.ItemEquipTable.GetItem(EquipSlots.LeftHand);
         if (itemLeftHand != null)
         {
-            if (!itemLeftHand.IsShield || GameManager.Instance.WeaponManager.EquipCountdownLeftHand > 0 || GameManager.Instance.ClimbingMotor.IsClimbing || GameManager.IsGamePaused || SaveLoadManager.Instance.LoadInProgress)
+            if (!itemLeftHand.IsShield)
+            {
+                lastTemplate = -1;
                 return;
+            }
 
-            if (whenSheathed == 0 && GameManager.Instance.WeaponManager.Sheathed)
-                return;
-
-            if (whenCasting == 0 && (GameManager.Instance.PlayerSpellCasting.IsPlayingAnim || GameManager.Instance.PlayerEffectManager.HasReadySpell))
+            if (GameManager.Instance.WeaponManager.EquipCountdownLeftHand > 0 ||
+                GameManager.Instance.ClimbingMotor.IsClimbing ||
+                GameManager.IsGamePaused ||
+                SaveLoadManager.Instance.LoadInProgress ||
+                (whenSheathed == 0 && GameManager.Instance.WeaponManager.Sheathed) ||
+                (whenCasting == 0 && (GameManager.Instance.PlayerSpellCasting.IsPlayingAnim || GameManager.Instance.PlayerEffectManager.HasReadySpell)))
                 return;
 
             if (DaggerfallUI.Instance.CustomScreenRect != null)
@@ -341,12 +398,12 @@ public class ShieldWidget : MonoBehaviour
 
             //change shield texture when a new shield type or material is equipped
             int index = itemLeftHand.TemplateIndex + itemLeftHand.NativeMaterialValue;
-            if (lastIndex != index)
+            if (lastTemplate != index)
             {
                 UpdateShieldTextures(itemLeftHand);
 
                 RefreshShield();
-                lastIndex = index;
+                lastTemplate = index;
 
                 attacked = false;
                 sheathed = false;
@@ -391,7 +448,7 @@ public class ShieldWidget : MonoBehaviour
                 if (spelled)
                 {
                     spelled = false;
-                    RefreshShield(); 
+                    RefreshShield();
                 }
             }
 
@@ -403,7 +460,8 @@ public class ShieldWidget : MonoBehaviour
                     attacked = true;
                     SetAttack();
                 }
-            } else
+            }
+            else
             {
                 if (attacked)
                 {
@@ -412,10 +470,10 @@ public class ShieldWidget : MonoBehaviour
                 }
             }
 
-            Vector3 current = new Vector3(shieldPositionCurrent.x,shieldPositionCurrent.y,0);
-            Vector3 target = new Vector3(shieldPositionTarget.x,shieldPositionTarget.y,0);
+            Vector3 current = new Vector3(shieldPositionCurrent.x, shieldPositionCurrent.y, 0);
+            Vector3 target = new Vector3(shieldPositionTarget.x, shieldPositionTarget.y, 0);
             //current = Vector3.RotateTowards(current, target, Time.deltaTime,0);
-            current = Vector3.MoveTowards(current, target, Time.deltaTime*stanceSpeed);
+            current = Vector3.MoveTowards(current, target, Time.deltaTime * offsetSpeed);
             shieldPositionCurrent = new Rect(current.x, current.y, shieldPositionTarget.width, shieldPositionTarget.height);
 
             //SCALE  TO SPEED AND MOVEMENT
@@ -424,7 +482,7 @@ public class ShieldWidget : MonoBehaviour
             float speed = currentSpeed / baseSpeed;
 
             //start of weapon bob code
-            if (bob && !attacking)
+            if (bob && !attacking && shieldPositionCurrent == shieldPositionTarget && animating == null)
             {
                 //SHAPE OF MOVE BOB
                 float bobYOffset = bobShape;
@@ -461,8 +519,18 @@ public class ShieldWidget : MonoBehaviour
                 float factor = 0.01f;
                 Vector2 bobSize = new Vector2(screenRect.width * factor * bob * bobSizeXMod, screenRect.height * factor * bob * bobSizeYMod);
 
+                //ADD OFFSET SO SPRITE DOESN'T EXPOSE EDGES WHEN BOBBING
+                float screenOffsetX = 1f;
+                float screenOffsetY = 1f;
+                //REVERSE OFFSET IF LEFT-HANDED
+                if (flipped)
+                {
+                    screenOffsetX *= -1;
+                    screenOffsetY *= -1;
+                }
+
                 //GET CURRENT BOB VALUES
-                Vector2 bobRaw = new Vector2(Mathf.Sin(bobOffset + Time.time * bobXSpeed) * -bobSize.x, (1-Mathf.Sin(bobOffset + bobYOffset + Time.time * bobYSpeed)) * bobSize.y);
+                Vector2 bobRaw = new Vector2((screenOffsetX + Mathf.Sin(bobOffset + Time.time * bobXSpeed)) * -bobSize.x, (screenOffsetY - Mathf.Sin(bobOffset + bobYOffset + Time.time * bobYSpeed)) * bobSize.y);
 
                 //SMOOTH TRANSITIONS BETWEEN WALKING, RUNNING, CROUCHING, ETC
                 bobSmooth = Vector2.MoveTowards(bobSmooth, bobRaw, Time.deltaTime * bobSmoothSpeed) * moveSmooth;
@@ -471,53 +539,72 @@ public class ShieldWidget : MonoBehaviour
             }
 
             //inertia
-            if (inertia && !attacking)
+            if (inertia)
             {
-                float mod = 1;
+                if (attacking || shieldPositionCurrent != shieldPositionTarget || animating != null || frameCurrent != 0)
+                {
+                    inertiaCurrent = Vector2.zero;
+                    inertiaTarget = Vector2.zero;
+                    inertiaForwardCurrent = Vector2.zero;
+                    inertiaForwardTarget = Vector2.zero;
+                } else
+                {
+                    float mod = 1;
 
-                if (GameManager.Instance.PlayerMouseLook.cursorActive)
-                    inertiaTarget = new Vector2(-InputManager.Instance.Horizontal* 0.5f * inertiaScale, 0);
-                else
-                    inertiaTarget = new Vector2(-(InputManager.Instance.LookX + InputManager.Instance.Horizontal)* 0.5f * inertiaScale, InputManager.Instance.LookY * inertiaScale);
+                    if (GameManager.Instance.PlayerMouseLook.cursorActive || InputManager.Instance.HasAction(InputManager.Actions.SwingWeapon))
+                        inertiaTarget = new Vector2(-InputManager.Instance.Horizontal * 0.5f * inertiaScale, 0);
+                    else
+                        inertiaTarget = new Vector2(-(InputManager.Instance.LookX + InputManager.Instance.Horizontal) * 0.5f * inertiaScale, InputManager.Instance.LookY * inertiaScale);
 
-                inertiaSpeedMod = Vector2.Distance(inertiaCurrent,inertiaTarget) / inertiaScale;
+                    inertiaSpeedMod = Vector2.Distance(inertiaCurrent, inertiaTarget) / inertiaScale;
 
-                if (inertiaTarget != Vector2.zero)
-                    mod = 3;
+                    if (inertiaTarget != Vector2.zero)
+                        mod = 3;
 
-                inertiaCurrent = Vector2.MoveTowards(inertiaCurrent, inertiaTarget, Time.deltaTime * inertiaSpeed * inertiaSpeedMod * mod);
+                    inertiaCurrent = Vector2.MoveTowards(inertiaCurrent, inertiaTarget, Time.deltaTime * inertiaSpeed * inertiaSpeedMod * mod);
 
-                Position += inertiaCurrent;
+                    Position += inertiaCurrent;
 
-                mod = 1;
+                    mod = 1;
 
-                if (inertiaForwardTarget != Vector2.zero)
-                    mod = 3;
+                    if (inertiaForwardTarget != Vector2.zero)
+                        mod = 3;
 
-                inertiaForwardTarget = new Vector2(InputManager.Instance.Vertical, InputManager.Instance.Vertical) * inertiaForwardScale * speed;
-                inertiaForwardCurrent = Vector2.MoveTowards(inertiaForwardCurrent, inertiaForwardTarget, Time.deltaTime * inertiaForwardSpeed * mod);
+                    inertiaForwardTarget = new Vector2(InputManager.Instance.Vertical, InputManager.Instance.Vertical) * inertiaForwardScale * speed;
+                    inertiaForwardCurrent = Vector2.MoveTowards(inertiaForwardCurrent, inertiaForwardTarget, Time.deltaTime * inertiaForwardSpeed * mod);
 
-                Scale += inertiaForwardCurrent;
-                Offset += inertiaForwardCurrent;
+                    Scale += inertiaForwardCurrent;
+                    Offset += inertiaForwardCurrent;
+                }
             }
 
             if (recoil)
             {
-                //If recoil is not zero, move it towards zero
-                if (recoilCurrent != Vector2.zero)
+                if (attacking || shieldPositionCurrent != shieldPositionTarget || animating != null || frameCurrent != 0)
                 {
-                    float mod = recoilCurrent.magnitude / 0.5f;
-                    recoilCurrent = Vector2.MoveTowards(recoilCurrent, Vector2.zero, Time.deltaTime * recoilSpeed * mod);
+                    recoilCurrent = Vector2.zero;
                 }
+                else
+                {
+                    //If recoil is not zero, move it towards zero
+                    if (recoilCurrent != Vector2.zero)
+                    {
+                        float mod = recoilCurrent.magnitude / 0.5f;
+                        recoilCurrent = Vector2.MoveTowards(recoilCurrent, Vector2.zero, Time.deltaTime * recoilSpeed * mod);
+                    }
 
-                Vector2 recoilFinal = recoilCurrent * recoilScale;
+                    Vector2 recoilFinal = recoilCurrent * recoilScale;
 
-                recoilFinal = new Vector2(Mathf.Clamp(recoilFinal.x,0,0.5f), Mathf.Clamp(recoilFinal.y, 0, 0.5f));
+                    recoilFinal = new Vector2(Mathf.Clamp(recoilFinal.x, 0, 0.5f), Mathf.Clamp(recoilFinal.y, 0, 0.5f));
 
-                Scale += recoilFinal;
-                Offset += recoilFinal;
+                    Scale += recoilFinal;
+                    //Offset -= recoilFinal * 0.5f;
+
+                }
             }
         }
+        else
+            lastTemplate = -1;
     }
 
     public Rect GetShieldRect()
@@ -526,8 +613,14 @@ public class ShieldWidget : MonoBehaviour
         {
             Rect shieldPositionOffset = shieldPositionCurrent;
 
-            shieldPositionOffset.x += Position.x;
-            shieldPositionOffset.y += Position.y;
+            if (stepTransforms && stepCondition < 1)
+            {
+                shieldPositionOffset.x = Snapping.Snap(shieldPositionOffset.x, stepLength);
+                shieldPositionOffset.y = Snapping.Snap(shieldPositionOffset.y, stepLength);
+            }
+
+            shieldPositionOffset.x += Position.x - (shieldPositionOffset.width * Scale.x);
+            shieldPositionOffset.y += Position.y - (shieldPositionOffset.height * Scale.y);
 
             shieldPositionOffset.width += shieldPositionOffset.width * Scale.x;
             shieldPositionOffset.height += shieldPositionOffset.height * Scale.y;
@@ -535,11 +628,29 @@ public class ShieldWidget : MonoBehaviour
             shieldPositionOffset.x += shieldPositionOffset.width * Offset.x;
             shieldPositionOffset.y += shieldPositionOffset.height * Offset.y;
 
+            if (stepTransforms && stepCondition > 0)
+            {
+                shieldPositionOffset.x = Snapping.Snap(shieldPositionOffset.x, stepLength);
+                shieldPositionOffset.y = Snapping.Snap(shieldPositionOffset.y, stepLength);
+            }
+
             //stop the texture from going higher than its bottom edge
             shieldPositionOffset.y = Mathf.Clamp(shieldPositionOffset.y,screenRect.height-shieldPositionOffset.height,screenRect.height);
 
             return shieldPositionOffset;
 
+        }
+        else if (stepTransforms)
+        {
+            Rect shieldPositionOffset = shieldPositionCurrent;
+
+            if (stepTransforms)
+            {
+                shieldPositionOffset.x = Snapping.Snap(shieldPositionOffset.x, stepLength);
+                shieldPositionOffset.y = Snapping.Snap(shieldPositionOffset.y, stepLength);
+            }
+
+            return shieldPositionOffset;
         }
         else
             return shieldPositionCurrent;
@@ -556,7 +667,56 @@ public class ShieldWidget : MonoBehaviour
     public void SetGuard()
     {
         weaponScaleX = (float)screenRect.width / (float)nativeScreenWidth;
-        weaponScaleY = weaponScaleX;
+        if (lockAspectRatio)
+            weaponScaleY = weaponScaleX;
+        else
+            weaponScaleY = (float)screenRect.height / (float)nativeScreenHeight;
+
+        if (animated)
+        {
+            if (frameCurrent != 0)
+            {
+                if (animationDirection == 1)
+                {
+                    frameCurrent = 0;
+                    shieldTexture = shieldTextures[indexCurrent + frameCurrent];
+                }
+                else
+                {
+                    if (animating != null)
+                        StopCoroutine(animating);
+                    animating = AnimateShield(4, 0, animationTime);
+                    StartCoroutine(animating);
+                }
+            }
+
+
+            if (flipped)
+            {
+                shieldPositionTarget = new Rect(
+                    screenRect.x + screenRect.width - (shieldTexture.width * scale) * weaponScaleX,
+                    screenRect.y + screenRect.height - (shieldTexture.height * 0.75f * scale) * weaponScaleY - weaponOffsetHeight,
+                    shieldTexture.width * scale * weaponScaleX,
+                    shieldTexture.height * scale * weaponScaleY
+                );
+            }
+            else
+            {
+                shieldPositionTarget = new Rect(
+                    screenRect.x,
+                    screenRect.y + screenRect.height - (shieldTexture.height * 0.75f * scale) * weaponScaleY - weaponOffsetHeight,
+                    shieldTexture.width * scale * weaponScaleX,
+                    shieldTexture.height * scale * weaponScaleY
+                );
+            }
+
+            return;
+        }
+        else if (frameCurrent != 0)
+        {
+            frameCurrent = 0;
+            shieldTexture = shieldTextures[indexCurrent + frameCurrent];
+        }
 
         if (flipped)
         {
@@ -570,7 +730,7 @@ public class ShieldWidget : MonoBehaviour
         else
         {
             shieldPositionTarget = new Rect(
-                screenRect.x + screenRect.width * 0.5f - (shieldTexture.width * scale) * offsetX * weaponScaleX,
+                screenRect.x + (screenRect.width * 0.5f) - (shieldTexture.width * scale) * offsetX * weaponScaleX,
                 screenRect.y + screenRect.height - (shieldTexture.height * scale) * offsetY * weaponScaleY - weaponOffsetHeight,
                 shieldTexture.width * scale * weaponScaleX,
                 shieldTexture.height * scale * weaponScaleY
@@ -581,14 +741,60 @@ public class ShieldWidget : MonoBehaviour
     public void SetAttack()
     {
         weaponScaleX = (float)screenRect.width / (float)nativeScreenWidth;
-        weaponScaleY = weaponScaleX;
+        if (lockAspectRatio)
+            weaponScaleY = weaponScaleX;
+        else
+            weaponScaleY = (float)screenRect.height / (float)nativeScreenHeight;
 
+        if (animated)
+        {
+            if (frameCurrent != 4)
+            {
+                if (animationDirection == 2)
+                {
+                    frameCurrent = 4;
+                    shieldTexture = shieldTextures[indexCurrent + frameCurrent];
+                }
+                else
+                {
+                    if (animating != null)
+                        StopCoroutine(animating);
+                    animating = AnimateShield(0, 4, animationTime);
+                    StartCoroutine(animating);
+                }
+            }
+
+            if (flipped)
+            {
+                shieldPositionTarget = new Rect(
+                    screenRect.x + screenRect.width - (shieldTexture.width * scale) * weaponScaleX,
+                    screenRect.y + screenRect.height - (shieldTexture.height * 0.5f * scale) * weaponScaleY - weaponOffsetHeight,
+                    shieldTexture.width * scale * weaponScaleX,
+                    shieldTexture.height * scale * weaponScaleY
+                );
+            }
+            else
+            {
+                shieldPositionTarget = new Rect(
+                    screenRect.x,
+                    screenRect.y + screenRect.height - (shieldTexture.height * 0.75f * scale) * weaponScaleY - weaponOffsetHeight,
+                    shieldTexture.width * scale * weaponScaleX,
+                    shieldTexture.height * scale * weaponScaleY
+                );
+            }
+            return;
+        }
+        else if (frameCurrent != 0)
+        {
+            frameCurrent = 0;
+            shieldTexture = shieldTextures[indexCurrent + frameCurrent];
+        }
 
         if (flipped)
         {
             shieldPositionTarget = new Rect(
-                screenRect.x + screenRect.width - (shieldTexture.width * scale) * 0.5f * weaponScaleX,
-                screenRect.y + screenRect.height - (shieldTexture.height * scale) * 0.5f * weaponScaleY - weaponOffsetHeight,
+                screenRect.x + screenRect.width - (shieldTexture.width * 0.5f * scale) * weaponScaleX,
+                screenRect.y + screenRect.height - (shieldTexture.height * 0.5f * scale) * weaponScaleY - weaponOffsetHeight,
                 shieldTexture.width * scale * weaponScaleX,
                 shieldTexture.height * scale * weaponScaleY
             );
@@ -596,46 +802,38 @@ public class ShieldWidget : MonoBehaviour
         else
         {
             shieldPositionTarget = new Rect(
-                screenRect.x + screenRect.width * 0.5f - (shieldTexture.width * scale) * 1.5f * weaponScaleX,
-                screenRect.y + screenRect.height - (shieldTexture.height * scale) * 0.5f * weaponScaleY - weaponOffsetHeight,
+                screenRect.x - (shieldTexture.width * 0.5f * scale)  * weaponScaleX,
+                screenRect.y + screenRect.height - (shieldTexture.height * 0.5f * scale) * weaponScaleY - weaponOffsetHeight,
                 shieldTexture.width * scale * weaponScaleX,
                 shieldTexture.height * scale * weaponScaleY
             );
         }
     }
 
-    //by blessed3220
-    //texture loading method. Grabs the string path the developer inputs, finds the file, if exists, loads it,
-    //then resizes it for use. If not, outputs error message.
-    public Texture2D LoadPNG(string filePath)
+    IEnumerator AnimateShield(int start, int end, float time)
     {
-        Texture2D tex = null;
-        byte[] fileData;
+        Debug.Log("ANIMATING SHIELD!");
 
-        if (File.Exists(filePath))
+        float interval = time / 5;
+        float timeCurrent = Time.unscaledTime;
+        frameCurrent = start;
+        while (frameCurrent != end)
         {
-            fileData = File.ReadAllBytes(filePath);
-            tex = new Texture2D(2, 2);
-            tex.filterMode = FilterMode.Point;
-            tex.name = Path.GetFileName(filePath);
-            tex.LoadImage(fileData); //..this will auto-resize the texture dimensions.
+            if (start > end)
+                frameCurrent--;
+            else
+                frameCurrent++;
+
+            shieldTexture = shieldTextures[indexCurrent + frameCurrent];
+
+            Debug.Log("ADVANCING FRAME!");
+
+            yield return new WaitForSeconds(interval);
         }
-        else
-            Debug.Log("FilePath Broken!");
-
-
-        return tex;
+        animating = null;
     }
 
-    /*
-    private void Update()
-    {
-        if (Input.GetMouseButtonDown(3))
-            HitShield();
-    }
-    */
-
-    public void HitShield(int damage)
+    public void HitShield(int damage, DaggerfallUnityItem shield)
     {
         if (!recoil)
             return;
@@ -660,6 +858,17 @@ public class ShieldWidget : MonoBehaviour
             recoilCurrent += Vector2.one * (0.1f + (damage * 0.01f));
             PlayImpactSound();
         }
+
+        //check if condition has changed
+        int conditionCurrent = shield.ConditionPercentage;
+
+        if ((conditionCurrent <= conditionThresholdUpper && conditionPrevious > conditionThresholdUpper) || (conditionCurrent <= conditionThresholdLower && conditionPrevious > conditionThresholdLower))
+        {
+            Debug.Log("Condition threshold passed! Updating shield!");
+            UpdateShieldTextures(shield);
+        }
+        else
+            conditionPrevious = conditionCurrent;
     }
 
     public void PlaySound()
@@ -896,13 +1105,13 @@ public class ShieldWidget : MonoBehaviour
                 {
                     if (Instance.recoilCondition > 2)                           //recoil shield on unshielded bits
                     {
-                        Instance.HitShield(damage);
+                        Instance.HitShield(damage,shield);
                     }
                     else                                                        //recoil shield only on shielded bits
                     {
                         bool shielded = Instance.IsPartShielded(shield,struckBodyPart);
                         if (shielded)
-                            Instance.HitShield(damage);
+                            Instance.HitShield(damage,shield);
                     }
                 }
             }
