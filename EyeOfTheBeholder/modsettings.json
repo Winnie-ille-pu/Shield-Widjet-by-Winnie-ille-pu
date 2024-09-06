@@ -1,0 +1,538 @@
+{
+    "Version": null,
+    "Sections": [
+        {
+            "Name": "Camera",
+            "Description": "Configure the characteristics of the camera",
+            "IsAdvanced": false,
+            "Keys": [
+                {
+                    "Value": true,
+                    "Name": "StartInThirdPerson",
+                    "Description": "Determines the POV when starting or loading a game",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.ToggleKey"
+                },
+                {
+                    "Value": {
+                        "First": 0.0,
+                        "Second": 0.5
+                    },
+                    "Name": "FrontalPlaneOffset",
+                    "Description": "Moves the camera position on the X and Y axes",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.TupleFloatKey"
+                },
+                {
+                    "Min": 1.0,
+                    "Max": 10.0,
+                    "Value": 2.0,
+                    "Name": "LongitudinalDistance",
+                    "Description": "Moves the camera position nearer or further to the player",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderFloatKey"
+                },
+                {
+                    "Min": 0.0,
+                    "Max": 1.0,
+                    "Value": 0.8,
+                    "Name": "MinimumDistance",
+                    "Description": "Prevents the camera from moving too close to the player. Value is a fraction of the Z offset.",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderFloatKey"
+                },
+                {
+                    "Min": 0.0,
+                    "Max": 1.0,
+                    "Value": 0.5,
+                    "Name": "RidingOffset",
+                    "Description": "Additional scaling offset to Y and Z axes when riding.",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderFloatKey"
+                },
+                {
+                    "Min": 1.0,
+                    "Max": 20.0,
+                    "Value": 10.0,
+                    "Name": "Speed",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderFloatKey"
+                },
+                {
+                    "Min": 0.0,
+                    "Max": 5.0,
+                    "Value": 1.0,
+                    "Name": "Dampen",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderFloatKey"
+                },
+                {
+                    "Value": true,
+                    "Name": "Auto-Switch",
+                    "Description": "X offset will be automatically mirrored if there is not enough space for the camera",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.ToggleKey"
+                },
+                {
+                    "Min": 0.0,
+                    "Max": 6.0,
+                    "Value": 3.0,
+                    "Name": "SwitchResetTime",
+                    "Description": "Time before the auto-switch is reverted. Set to 0 to disable",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderFloatKey"
+                },
+                {
+                    "Value": "KeypadEnter",
+                    "Name": "TogglePerspective",
+                    "Description": "Enable or disable third-person mode",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.TextKey"
+                },
+                {
+                    "Value": "Tab",
+                    "Name": "SwitchShoulder",
+                    "Description": "Mirrors the camera's X offset if it is non-zero",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.TextKey"
+                }
+            ],
+            "$version": "v1"
+        },
+        {
+            "Name": "Graphics",
+            "Description": "Configure the player sprite",
+            "IsAdvanced": false,
+            "Keys": [
+                {
+                    "Value": true,
+                    "Name": "Enable",
+                    "Description": "Toggle the player graphic",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.ToggleKey"
+                },
+                {
+                    "Min": 0,
+                    "Max": 15,
+                    "Value": 0,
+                    "Name": "OnFoot",
+                    "Description": "Sprite when on foot",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderIntKey"
+                },
+                {
+                    "Min": 0,
+                    "Max": 4,
+                    "Value": 0,
+                    "Name": "OnHorse",
+                    "Description": "Sprite when riding a horse",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderIntKey"
+                },
+                {
+                    "Options": [
+                        "Never",
+                        "When Idle",
+                        "When Idle or Moving"
+                    ],
+                    "Value": 2,
+                    "Name": "ReadyStance",
+                    "Description": "Whether the sprite will change states when readying a weapon or spell",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.MultipleChoiceKey"
+                },
+                {
+                    "Options": [
+                        "Never",
+                        "Only When Animating",
+                        "When Weapon Readied",
+                        "Always"
+                    ],
+                    "Value": 2,
+                    "Name": "TurnToView",
+                    "Description": "Configure when the sprite turns to face the view",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.MultipleChoiceKey"
+                },
+                {
+                    "Options": [
+                        "None",
+                        "Mirror",
+                        "PingPong",
+                        "Mixed"
+                    ],
+                    "Value": 3,
+                    "Name": "AttackStrings",
+                    "Description": "Optional attack animations",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.MultipleChoiceKey"
+                },
+                {
+                    "Min": 1.0,
+                    "Max": 5.0,
+                    "Value": 3.0,
+                    "Name": "MirrorTime",
+                    "Description": "Time before reverting the mirrored state. Set to 0 to disable.",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderFloatKey"
+                },
+                {
+                    "Min": -3,
+                    "Max": 3,
+                    "Value": 1,
+                    "Name": "PingPongOffset",
+                    "Description": "Adjusts the point in the animation where it starts playing backwards",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderIntKey"
+                },
+                {
+                    "Value": true,
+                    "Name": "FirstPersonShadow",
+                    "Description": "Whether the billboard should continue to cast a shadow in first-person",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.ToggleKey"
+                },
+                {
+                    "Options": [
+                        "Vanilla",
+                        "Billboard"
+                    ],
+                    "Value": 1,
+                    "Name": "TorchOffset",
+                    "Description": "Whether the torch follows the orientation of the sprite",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.MultipleChoiceKey"
+                }
+            ],
+            "$version": "v1"
+        },
+        {
+            "Name": "-----",
+            "Description": null,
+            "IsAdvanced": false,
+            "Keys": [],
+            "$version": "v1"
+        },
+        {
+            "Name": "Animation",
+            "Description": "Adjust the properties of the animations",
+            "IsAdvanced": true,
+            "Keys": [
+                {
+                    "Min": 0.0,
+                    "Max": 10.0,
+                    "Value": 1.0,
+                    "Name": "BillboardScale",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderFloatKey"
+                },
+                {
+                    "Min": 0.0,
+                    "Max": 10.0,
+                    "Value": 1.0,
+                    "Name": "GlobalOffsetScale",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderFloatKey"
+                },
+                {
+                    "Min": 1,
+                    "Max": 60,
+                    "Value": 1,
+                    "Name": "FootIdleLength",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderIntKey"
+                },
+                {
+                    "Value": {
+                        "First": 0.0,
+                        "Second": 0.09
+                    },
+                    "Name": "FootIdleOffset",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.TupleFloatKey"
+                },
+                {
+                    "Min": 1,
+                    "Max": 60,
+                    "Value": 4,
+                    "Name": "FootMoveLength",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderIntKey"
+                },
+                {
+                    "Value": {
+                        "First": 0.0,
+                        "Second": 0.09
+                    },
+                    "Name": "FootMoveOffset",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.TupleFloatKey"
+                },
+                {
+                    "Min": 1,
+                    "Max": 60,
+                    "Value": 1,
+                    "Name": "FootReadyMeleeLength",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderIntKey"
+                },
+                {
+                    "Min": 1,
+                    "Max": 60,
+                    "Value": 6,
+                    "Name": "FootAttackMeleeLength",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderIntKey"
+                },
+                {
+                    "Value": {
+                        "First": 0.35,
+                        "Second": 0.22
+                    },
+                    "Name": "FootAttackMeleeOffset",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.TupleFloatKey"
+                },
+                {
+                    "Min": 1,
+                    "Max": 60,
+                    "Value": 1,
+                    "Name": "FootReadyRangedLength",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderIntKey"
+                },
+                {
+                    "Min": 1,
+                    "Max": 60,
+                    "Value": 4,
+                    "Name": "FootAttackRangedLength",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderIntKey"
+                },
+                {
+                    "Value": {
+                        "First": 0.25,
+                        "Second": 0.28
+                    },
+                    "Name": "FootAttackRangedOffset",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.TupleFloatKey"
+                },
+                {
+                    "Min": 1,
+                    "Max": 60,
+                    "Value": 1,
+                    "Name": "FootReadySpellLength",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderIntKey"
+                },
+                {
+                    "Min": 1,
+                    "Max": 60,
+                    "Value": 4,
+                    "Name": "FootAttackSpellLength",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderIntKey"
+                },
+                {
+                    "Value": {
+                        "First": -0.25,
+                        "Second": 0.35
+                    },
+                    "Name": "FootAttackSpellOffset",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.TupleFloatKey"
+                },
+                {
+                    "Min": 1,
+                    "Max": 60,
+                    "Value": 2,
+                    "Name": "FootDeathLength",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderIntKey"
+                },
+                {
+                    "Value": {
+                        "First": 0.0,
+                        "Second": -0.5
+                    },
+                    "Name": "FootDeathOffset",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.TupleFloatKey"
+                },
+                {
+                    "Min": 1,
+                    "Max": 60,
+                    "Value": 1,
+                    "Name": "HorseIdleLength",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderIntKey"
+                },
+                {
+                    "Value": {
+                        "First": 0.0,
+                        "Second": 0.0
+                    },
+                    "Name": "HorseIdleOffset",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.TupleFloatKey"
+                },
+                {
+                    "Min": 1,
+                    "Max": 60,
+                    "Value": 8,
+                    "Name": "HorseMoveLength",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderIntKey"
+                },
+                {
+                    "Value": {
+                        "First": 0.0,
+                        "Second": 0.0
+                    },
+                    "Name": "HorseMoveOffset",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.TupleFloatKey"
+                },
+                {
+                    "Min": 1,
+                    "Max": 60,
+                    "Value": 2,
+                    "Name": "LycanIdleLength",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderIntKey"
+                },
+                {
+                    "Value": {
+                        "First": 0.0,
+                        "Second": 0.1
+                    },
+                    "Name": "LycanIdleOffset",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.TupleFloatKey"
+                },
+                {
+                    "Min": 1,
+                    "Max": 60,
+                    "Value": 4,
+                    "Name": "LycanMoveLength",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderIntKey"
+                },
+                {
+                    "Value": {
+                        "First": 0.0,
+                        "Second": 0.1
+                    },
+                    "Name": "LycanMoveOffset",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.TupleFloatKey"
+                },
+                {
+                    "Min": 1,
+                    "Max": 60,
+                    "Value": 1,
+                    "Name": "LycanReadyLength",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderIntKey"
+                },
+                {
+                    "Min": 1,
+                    "Max": 60,
+                    "Value": 3,
+                    "Name": "LycanAttackLength",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderIntKey"
+                },
+                {
+                    "Value": {
+                        "First": 0.05,
+                        "Second": 0.3
+                    },
+                    "Name": "LycanAttackOffset",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.TupleFloatKey"
+                },
+                {
+                    "Min": 1,
+                    "Max": 60,
+                    "Value": 2,
+                    "Name": "LycanDeathLength",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderIntKey"
+                },
+                {
+                    "Value": {
+                        "First": 0.0,
+                        "Second": -0.5
+                    },
+                    "Name": "LycanDeathOffset",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.TupleFloatKey"
+                }
+            ],
+            "$version": "v1"
+        },
+        {
+            "Name": "Compatibility",
+            "Description": "Settings to fix minor conflicts with other mods. MAY REQUIRE RESTART TO BE EFFECTIVE.",
+            "IsAdvanced": true,
+            "Keys": [
+                {
+                    "Value": false,
+                    "Name": "Don'tHideWeapon",
+                    "Description": "Stops the FPV Weapon graphic from being hidden or shown",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.ToggleKey"
+                },
+                {
+                    "Value": false,
+                    "Name": "Don'tHideHorse",
+                    "Description": "Stops the FPV Horse graphic from being hidden or shown",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.ToggleKey"
+                },
+                {
+                    "Value": false,
+                    "Name": "Don'tOffsetAttacks",
+                    "Description": "Stops the attack-from-body code from running for melee and ranged",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.ToggleKey"
+                }
+            ],
+            "$version": "v1"
+        }
+    ]
+}
