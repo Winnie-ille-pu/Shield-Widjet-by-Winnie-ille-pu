@@ -148,7 +148,8 @@ public class ShieldWidget : MonoBehaviour
         sheathed = false;
         spelled = false;
 
-        flipped = GameManager.Instance.WeaponManager.ScreenWeapon.FlipHorizontal;
+        if (DaggerfallUnity.Settings.Handedness == 1)
+            flipped = true;
         if (flipped)
             curAnimRect = new Rect(1, 0, -1, 1);
         else
@@ -526,7 +527,7 @@ public class ShieldWidget : MonoBehaviour
                 if (flipped)
                 {
                     screenOffsetX *= -1;
-                    screenOffsetY *= -1;
+                    //screenOffsetY *= -1;
                 }
 
                 //GET CURRENT BOB VALUES
@@ -613,10 +614,12 @@ public class ShieldWidget : MonoBehaviour
         {
             Rect shieldPositionOffset = shieldPositionCurrent;
 
-            if (stepTransforms && stepCondition < 1)
+            if (stepTransforms)
             {
-                shieldPositionOffset.x = Snapping.Snap(shieldPositionOffset.x, stepLength);
-                shieldPositionOffset.y = Snapping.Snap(shieldPositionOffset.y, stepLength);
+                Position = new Vector2(
+                    Snapping.Snap(Position.x, stepLength),
+                    Snapping.Snap(Position.y, stepLength)
+                    );
             }
 
             shieldPositionOffset.x += Position.x - (shieldPositionOffset.width * Scale.x);
@@ -625,14 +628,16 @@ public class ShieldWidget : MonoBehaviour
             shieldPositionOffset.width += shieldPositionOffset.width * Scale.x;
             shieldPositionOffset.height += shieldPositionOffset.height * Scale.y;
 
-            shieldPositionOffset.x += shieldPositionOffset.width * Offset.x;
-            shieldPositionOffset.y += shieldPositionOffset.height * Offset.y;
-
             if (stepTransforms && stepCondition > 0)
             {
-                shieldPositionOffset.x = Snapping.Snap(shieldPositionOffset.x, stepLength);
-                shieldPositionOffset.y = Snapping.Snap(shieldPositionOffset.y, stepLength);
+                Offset = new Vector2(
+                    Snapping.Snap(Offset.x, stepLength * 0.01f),
+                    Snapping.Snap(Offset.y, stepLength * 0.01f)
+                    );
             }
+
+            shieldPositionOffset.x += shieldPositionOffset.width * Offset.x;
+            shieldPositionOffset.y += shieldPositionOffset.height * Offset.y;
 
             //stop the texture from going higher than its bottom edge
             shieldPositionOffset.y = Mathf.Clamp(shieldPositionOffset.y,screenRect.height-shieldPositionOffset.height,screenRect.height);
