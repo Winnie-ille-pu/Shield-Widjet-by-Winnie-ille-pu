@@ -1,0 +1,22 @@
+{
+    "ModTitle": "Configurable Armor Progression",
+    "ModVersion": "1.0.1",
+    "ModAuthor": "RedRoryOTheGlen",
+    "ContactInfo": "rmufrancisco@gmail.com",
+    "DFUnity_Version": "1.1.1",
+    "ModDescription": "Allows the player to set whether specific armor materials count as Leather, Chain or Plate for Forbidden Armor checks",
+    "GUID": "8287c3c1-e023-4998-972d-8f186ec6a37b",
+    "Files": [
+        "Assets/Game/Mods/VanillaArmorReplacer/modsettings.json",
+        "Assets/Game/Mods/VanillaArmorReplacer/VanillaArmorReplacer.dfmod.json",
+        "Assets/Game/Mods/VanillaArmorReplacer/ItemTemplates.json",
+        "Assets/Game/Mods/VanillaArmorReplacer/Scripts/VanillaArmorReplacer.cs",
+        "Assets/Game/Mods/VanillaArmorReplacer/Scripts/ItemPauldronLeft.cs",
+        "Assets/Game/Mods/VanillaArmorReplacer/Scripts/ItemHelm.cs",
+        "Assets/Game/Mods/VanillaArmorReplacer/Scripts/ItemBoots.cs",
+        "Assets/Game/Mods/VanillaArmorReplacer/Scripts/ItemGauntlets.cs",
+        "Assets/Game/Mods/VanillaArmorReplacer/Scripts/ItemCuirass.cs",
+        "Assets/Game/Mods/VanillaArmorReplacer/Scripts/ItemPauldronRight.cs",
+        "Assets/Game/Mods/VanillaArmorReplacer/Scripts/ItemGreaves.cs"
+    ]
+}
