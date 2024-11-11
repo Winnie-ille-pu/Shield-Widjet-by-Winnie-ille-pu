@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using DaggerfallWorkshop;
+using DaggerfallWorkshop.Utility;
 using DaggerfallWorkshop.Game;
 using DaggerfallWorkshop.Game.Formulas;
 using DaggerfallWorkshop.Game.Serialization;
@@ -69,9 +70,9 @@ public class PlayerBillboard : MonoBehaviour
         get
         {
             if (riding)
-                return 0.0625f;
+                return 0.0625f * (2-walkAnimSpeedMod);
             else
-                return 0.25f;
+                return 0.25f * (2-walkAnimSpeedMod);
         }
     }
     float frameTimer;
@@ -169,6 +170,16 @@ public class PlayerBillboard : MonoBehaviour
 
     public bool FP;
     public int torchOffset;
+    public float walkAnimSpeedMod;
+
+    public bool footsteps;
+    SoundClips footstepSound1;
+    SoundClips footstepSound2;
+    AudioClip footstep1;
+    AudioClip footstep2;
+    bool footstepAlt;
+
+    bool hasPlayedFootstep;
 
     public class PlayerBillboardState
     {
@@ -247,6 +258,8 @@ public class PlayerBillboard : MonoBehaviour
 
     void InitializeStates()
     {
+        died = false;
+
         int indexLycan = 0;
         if (GameManager.Instance.PlayerEffectManager.LycanthropyType() == LycanthropyTypes.Wereboar)
             indexLycan = 1;
@@ -462,6 +475,7 @@ public class PlayerBillboard : MonoBehaviour
         mirrorTime = mirrorDecay;
         pingpongOffset = pingpongAdjust;
         torchOffset = torchFollow;
+        died = false;
 
         // Get component references
         mainCamera = GameObject.FindGameObjectWithTag("MainCamera").GetComponent<Camera>();
@@ -490,7 +504,6 @@ public class PlayerBillboard : MonoBehaviour
             isAnimating = null;
         }
 
-        died = false;
         mirrorCount = 0;
         mirrorTimer = 0;
         pingpongCount = 0;
@@ -499,6 +512,11 @@ public class PlayerBillboard : MonoBehaviour
             stateCurrent = stateLast;
         else
             stateCurrent = StatesIdle;
+
+        if (footsteps)
+            DisableVanillaFootsteps();
+        else
+            EnableVanillaFootsteps();
 
         UpdateOrientation(true);
     }
@@ -593,6 +611,7 @@ public class PlayerBillboard : MonoBehaviour
     }
     void LoopIdleBillboard()
     {
+        bool isGrounded = GameManager.Instance.PlayerMotor.IsGrounded;
         bool isSpellcasting = GameManager.Instance.PlayerEffectManager.HasReadySpell;
         bool isStopped = GameManager.Instance.PlayerMotor.IsStandingStill;
         bool isSheathed = GameManager.Instance.WeaponManager.Sheathed;
@@ -649,6 +668,24 @@ public class PlayerBillboard : MonoBehaviour
 
             if (GameManager.Instance.SpeedChanger.isSneaking)
                 speed *= 2f;
+
+            if (footsteps)
+            {
+                if (!isStopped && isGrounded && !animating)
+                {
+                    int step = 2;
+                    if (GameManager.Instance.PlayerMotor.IsRiding)
+                        step = 4;
+
+                    if (frameCurrent % step == 0)
+                    {
+                        if (!hasPlayedFootstep)
+                            PlayFootstep();
+                    }
+                    else
+                        hasPlayedFootstep = false;
+                }
+            }
 
             if (frameTimer > frameTime * speed)
             {
@@ -1080,7 +1117,10 @@ public class PlayerBillboard : MonoBehaviour
         if (EyeOfTheBeholder.Instance != null)
             EyeOfTheBeholder.Instance.HasSwungWeapon = true;
 
-        StartCoroutine(isAnimating);
+        if (StatesAttackSpell.Length > 1)
+            StartCoroutine(isAnimating);
+        else
+            isAnimating = null;
     }
 
     void PlayRangedAttackAnimation()
@@ -1099,7 +1139,10 @@ public class PlayerBillboard : MonoBehaviour
         if (EyeOfTheBeholder.Instance != null)
             EyeOfTheBeholder.Instance.HasFiredMissile = true;
 
-        StartCoroutine(isAnimating);
+        if (StatesAttackSpell.Length > 1)
+            StartCoroutine(isAnimating);
+        else
+            isAnimating = null;
     }
 
     void PlayRangedAttackAnimationHold()
@@ -1134,7 +1177,10 @@ public class PlayerBillboard : MonoBehaviour
         if (EyeOfTheBeholder.Instance != null)
             EyeOfTheBeholder.Instance.HasFiredMissile = true;
 
-        StartCoroutine(isAnimating);
+        if (StatesAttackSpell.Length > 1)
+            StartCoroutine(isAnimating);
+        else
+            isAnimating = null;
     }
 
     void PlayLycanAttackAnimation()
@@ -1153,7 +1199,10 @@ public class PlayerBillboard : MonoBehaviour
         if (EyeOfTheBeholder.Instance != null)
             EyeOfTheBeholder.Instance.HasSwungWeapon = true;
 
-        StartCoroutine(isAnimating);
+        if (StatesAttackSpell.Length > 1)
+            StartCoroutine(isAnimating);
+        else
+            isAnimating = null;
     }
 
     void PlayDeathAnimation()
@@ -1172,7 +1221,11 @@ public class PlayerBillboard : MonoBehaviour
         else
             isAnimating = PlayAnimationCoroutine(StatesDeath, GameManager.classicUpdateInterval * 4, true);
 
-        StartCoroutine(isAnimating);
+
+        if (StatesAttackSpell.Length > 1)
+            StartCoroutine(isAnimating);
+        else
+            isAnimating = null;
     }
 
     IEnumerator PlayAnimationCoroutine(PlayerBillboardState[] states, float interval, bool freeze = false)
@@ -1303,5 +1356,172 @@ public class PlayerBillboard : MonoBehaviour
             return MaterialReader.CreateBillboardMaterial();
         else
             return MaterialReader.CreateStandardMaterial(blendMode);
+    }
+
+    void DisableVanillaFootsteps()
+    {
+        PlayerFootsteps playerFootsteps = GameManager.Instance.PlayerObject.GetComponent<PlayerFootsteps>();
+
+        playerFootsteps.FootstepSoundDungeon1 = SoundClips.None;
+        playerFootsteps.FootstepSoundDungeon2 = SoundClips.None;
+        playerFootsteps.FootstepSoundOutside1 = SoundClips.None;
+        playerFootsteps.FootstepSoundOutside2 = SoundClips.None;
+        playerFootsteps.FootstepSoundSnow1 = SoundClips.None;
+        playerFootsteps.FootstepSoundSnow2 = SoundClips.None;
+        playerFootsteps.FootstepSoundBuilding1 = SoundClips.None;
+        playerFootsteps.FootstepSoundBuilding2 = SoundClips.None;
+        playerFootsteps.FootstepSoundShallow = SoundClips.None;
+        playerFootsteps.FootstepSoundSubmerged = SoundClips.None;
+    }
+
+    void EnableVanillaFootsteps()
+    {
+        PlayerFootsteps playerFootsteps = GameManager.Instance.PlayerObject.GetComponent<PlayerFootsteps>();
+
+        playerFootsteps.FootstepSoundDungeon1 = SoundClips.PlayerFootstepStone1;
+        playerFootsteps.FootstepSoundDungeon2 = SoundClips.PlayerFootstepStone2;
+        playerFootsteps.FootstepSoundOutside1 = SoundClips.PlayerFootstepOutside1;
+        playerFootsteps.FootstepSoundOutside2 = SoundClips.PlayerFootstepOutside2;
+        playerFootsteps.FootstepSoundSnow1 = SoundClips.PlayerFootstepSnow1;
+        playerFootsteps.FootstepSoundSnow2 = SoundClips.PlayerFootstepSnow2;
+        playerFootsteps.FootstepSoundBuilding1 = SoundClips.PlayerFootstepWood1;
+        playerFootsteps.FootstepSoundBuilding2 = SoundClips.PlayerFootstepWood2;
+        playerFootsteps.FootstepSoundShallow = SoundClips.SplashSmallLow;
+        playerFootsteps.FootstepSoundSubmerged = SoundClips.SplashSmall;
+    }
+
+    void PlayFootstep()
+    {
+        //this condition helps prevent making a nuisance footstep noise when the player first
+        //loads a save, or into an interior or exterior location
+        /*if (GameManager.Instance.SaveLoadManager.LoadInProgress || GameManager.Instance.StreamingWorld.IsRepositioningPlayer)
+        {
+            ignoreLostGrounding = true;
+            return;
+        }*/
+
+        AudioSource audioSource = GameManager.Instance.PlayerObject.GetComponent<AudioSource>();
+        DaggerfallAudioSource dfAudioSource = GameManager.Instance.PlayerObject.GetComponent<DaggerfallAudioSource>();
+
+        PlayerFootsteps playerFootsteps = GameManager.Instance.PlayerObject.GetComponent<PlayerFootsteps>();
+        PlayerMotor playerMotor = GameManager.Instance.PlayerMotor;
+        PlayerEnterExit playerEnterExit = GameManager.Instance.PlayerEnterExit;
+
+        DaggerfallDateTime.Seasons playerSeason = DaggerfallUnity.Instance.WorldTime.Now.SeasonValue;
+        int playerClimateIndex = GameManager.Instance.PlayerGPS.CurrentClimateIndex;
+
+        // Get player inside flag
+        // Can only do this when PlayerEnterExit is available, otherwise default to true
+        bool playerInside = (playerEnterExit == null) ? true : playerEnterExit.IsPlayerInside;
+        bool playerInBuilding = (playerEnterExit == null) ? false : playerEnterExit.IsPlayerInsideBuilding;
+
+        // Play splash footsteps whether player is walking on or swimming in exterior water
+        bool playerOnExteriorWater = (GameManager.Instance.PlayerMotor.OnExteriorWater == PlayerMotor.OnExteriorWaterMethod.Swimming || GameManager.Instance.PlayerMotor.OnExteriorWater == PlayerMotor.OnExteriorWaterMethod.WaterWalking);
+
+        bool playerOnExteriorPath = GameManager.Instance.PlayerMotor.OnExteriorPath;
+        bool playerOnStaticGeometry = GameManager.Instance.PlayerMotor.OnExteriorStaticGeometry;
+
+        SoundClips currentFootstepSound1;
+        SoundClips currentFootstepSound2;
+
+        // Change footstep sounds between winter/summer variants, when player enters/exits an interior space, or changes between path, water, or other outdoor ground
+        if (!playerInside && !playerOnStaticGeometry)
+        {
+            if (playerSeason == DaggerfallDateTime.Seasons.Winter && !WeatherManager.IsSnowFreeClimate(playerClimateIndex))
+            {
+                currentFootstepSound1 = SoundClips.PlayerFootstepSnow1;
+                currentFootstepSound2 = SoundClips.PlayerFootstepSnow2;
+            }
+            else
+            {
+                currentFootstepSound1 = SoundClips.PlayerFootstepOutside1;
+                currentFootstepSound2 = SoundClips.PlayerFootstepOutside2;
+            }
+        }
+        else if (playerInBuilding)
+        {
+            currentFootstepSound1 = SoundClips.PlayerFootstepWood1;
+            currentFootstepSound2 = SoundClips.PlayerFootstepWood2;
+        }
+        else // in dungeon
+        {
+            currentFootstepSound1 = SoundClips.PlayerFootstepStone1;
+            currentFootstepSound2 = SoundClips.PlayerFootstepStone2;
+        }
+
+        // walking on water tile
+        if (playerOnExteriorWater)
+        {
+            currentFootstepSound1 = SoundClips.SplashSmall;
+            currentFootstepSound2 = SoundClips.SplashSmall;
+        }
+
+        // walking on path tile
+        if (playerOnExteriorPath)
+        {
+            currentFootstepSound1 = SoundClips.PlayerFootstepStone1;
+            currentFootstepSound2 = SoundClips.PlayerFootstepStone2;
+        }
+
+        // Use water sounds if in dungeon water
+        if (GameManager.Instance.PlayerEnterExit.IsPlayerInsideDungeon && playerEnterExit.blockWaterLevel != 10000)
+        {
+            // In water, deep depth
+            if ((currentFootstepSound1 != SoundClips.SplashSmall) && playerEnterExit.IsPlayerSwimming)
+            {
+                currentFootstepSound1 = SoundClips.SplashSmall;
+                currentFootstepSound2 = SoundClips.SplashSmall;
+            }
+            // In water, shallow depth
+            else if ((currentFootstepSound1 != SoundClips.SplashSmallLow) && !playerEnterExit.IsPlayerSwimming && (playerMotor.transform.position.y - 0.57f) < (playerEnterExit.blockWaterLevel * -1 * MeshReader.GlobalScale))
+            {
+                currentFootstepSound1 = SoundClips.SplashSmallLow;
+                currentFootstepSound2 = SoundClips.SplashSmallLow;
+            }
+        }
+
+        // Not in water, reset footsteps to normal
+        if ((!playerOnExteriorWater)
+            && (currentFootstepSound1 == SoundClips.SplashSmall || currentFootstepSound1 == SoundClips.SplashSmallLow)
+            && (playerEnterExit.blockWaterLevel == 10000 || (playerMotor.transform.position.y - 0.95f) >= (playerEnterExit.blockWaterLevel * -1 * MeshReader.GlobalScale)))
+        {
+            currentFootstepSound1 = SoundClips.PlayerFootstepStone1;
+            currentFootstepSound2 = SoundClips.PlayerFootstepStone2;
+        }
+
+        // Check whether player is on foot and abort playing footsteps if not.
+        if (playerMotor.IsLevitating || !GameManager.Instance.TransportManager.IsOnFoot && playerMotor.OnExteriorWater == PlayerMotor.OnExteriorWaterMethod.None)
+        {
+            return;
+        }
+
+        if (footstepSound1 != currentFootstepSound1 || footstepSound2 != currentFootstepSound2)
+        {
+            footstepSound1 = currentFootstepSound1;
+            footstepSound2 = currentFootstepSound2;
+
+            footstep1 = dfAudioSource.GetAudioClip((int)footstepSound1);
+            footstep2 = dfAudioSource.GetAudioClip((int)footstepSound2);
+        }
+
+        // Check if player is grounded
+        // Note: In classic, submerged "footstep" sound is only played when walking on the floor while in the water, but it sounds like a swimming sound
+        // and when outside is played while swimming at the water's surface, so it seems better to play it all the time while submerged in water.
+        if (!playerMotor.IsSwimming)
+        {
+            float povMod = 2;
+
+            if (FP)
+                povMod = 1;
+
+            if (!footstepAlt)
+                audioSource.PlayOneShot(footstep1, playerFootsteps.FootstepVolumeScale * DaggerfallUnity.Settings.SoundVolume * povMod);
+            else
+                audioSource.PlayOneShot(footstep2, playerFootsteps.FootstepVolumeScale * DaggerfallUnity.Settings.SoundVolume * povMod);
+
+            footstepAlt = !footstepAlt;
+        }
+
+        hasPlayedFootstep = true;
     }
 }
