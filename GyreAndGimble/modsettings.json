@@ -1,0 +1,127 @@
+{
+    "Version": null,
+    "Sections": [
+        {
+            "Name": "Modules",
+            "Description": null,
+            "IsAdvanced": false,
+            "Keys": [
+                {
+                    "Value": true,
+                    "Name": "CursorMovement",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.ToggleKey"
+                },
+                {
+                    "Value": true,
+                    "Name": "CursorModeCameraControls",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.ToggleKey"
+                },
+                {
+                    "Value": true,
+                    "Name": "UnlockedVanillaAttackCamera",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.ToggleKey"
+                },
+                {
+                    "Value": true,
+                    "Name": "FreeLook",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.ToggleKey"
+                },
+                {
+                    "Value": true,
+                    "Name": "Auto-pitch",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.ToggleKey"
+                }
+            ],
+            "$version": "v1"
+        },
+        {
+            "Name": "CursorMovement",
+            "Description": "",
+            "IsAdvanced": false,
+            "Keys": [
+                {
+                    "Value": "Mouse0",
+                    "Name": "MovementInput",
+                    "Description": "Key pressed to move while in Cursor Mode",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.TextKey"
+                }
+            ],
+            "$version": "v1"
+        },
+        {
+            "Name": "FreeLook",
+            "Description": "",
+            "IsAdvanced": false,
+            "Keys": [
+                {
+                    "Value": "X",
+                    "Name": "ActivationInput",
+                    "Description": "Hold to enable Free Look",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.TextKey"
+                },
+                {
+                    "Value": "Mouse0",
+                    "Name": "ResetInput",
+                    "Description": "Use while in Free Look to reset the angle of the view",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.TextKey"
+                },
+                {
+                    "Value": false,
+                    "Name": "AutoReset",
+                    "Description": "Reset's view angle when Activation Input is released",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.ToggleKey"
+                }
+            ],
+            "$version": "v1"
+        },
+        {
+            "Name": "Autopitch",
+            "Description": "",
+            "IsAdvanced": false,
+            "Keys": [
+                {
+                    "Min": 0.1,
+                    "Max": 2.0,
+                    "Value": 1.0,
+                    "Name": "Speed",
+                    "Description": "Speed of autopitch",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderFloatKey"
+                },
+                {
+                    "Min": 0.0,
+                    "Max": 1.0,
+                    "Value": 0.5,
+                    "Name": "Strength",
+                    "Description": "Final pitch angle as a fraction of true detected angle",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderFloatKey"
+                },
+                {
+                    "Min": -45.0,
+                    "Max": 45.0,
+                    "Value": 0.0,
+                    "Name": "Offset",
+                    "Description": "Adjusts the resting angle of autopitch in degrees",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderFloatKey"
+                }
+            ],
+            "$version": "v1"
+        }
+    ]
+}
