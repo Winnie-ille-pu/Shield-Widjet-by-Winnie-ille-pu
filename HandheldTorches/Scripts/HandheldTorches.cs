@@ -159,6 +159,10 @@ public class HandheldTorches : MonoBehaviour
     public ulong skipTimeStart;
     IUserInterfaceWindow LastUIWindow;
 
+    //EOTB compatibility
+    bool eyeOfTheBeholder;
+    bool isInThirdPerson;
+
     static Mod mod;
     [Invoke(StateManager.StateTypes.Start, 0)]
 
@@ -182,6 +186,13 @@ public class HandheldTorches : MonoBehaviour
 
         DaggerfallUI.UIManager.OnWindowChange += OnRestWindowOpen;
         DaggerfallUI.UIManager.OnWindowChange += OnRestWindowClose;
+
+        SaveLoadManager.OnStartLoad += DestroyLightSources_OnStartLoad;
+    }
+
+    public static void DestroyLightSources_OnStartLoad(SaveData_v1 saveData)
+    {
+        DestroyLightSources();
     }
 
     public static void OnRestWindowOpen(object sender, EventArgs e)
@@ -238,6 +249,8 @@ public class HandheldTorches : MonoBehaviour
         mod.LoadSettingsCallback = LoadSettings;
         mod.LoadSettings();
 
+        ModCompatibilityChecking();
+
         Instance = this;
 
         playerLightSource = GameManager.Instance.PlayerObject.GetComponent<EnablePlayerTorch>().PlayerTorch.GetComponent<Light>();
@@ -277,6 +290,12 @@ public class HandheldTorches : MonoBehaviour
         RefreshSprite();
 
         mod.IsReady = true;
+    }
+    private void ModCompatibilityChecking()
+    {
+        //Eye Of The Beholder
+        Mod eotb = ModManager.Instance.GetModFromGUID("2942ea8c-dbd4-42af-bdf9-8199d2f4a0aa");
+        eyeOfTheBeholder = eotb != null ? true : false;
     }
 
     private void LoadSettings(ModSettings settings, ModSettingsChange change)
@@ -364,7 +383,7 @@ public class HandheldTorches : MonoBehaviour
     {
         GUI.depth = 0;
 
-        if (!showSprite || GameManager.IsGamePaused)
+        if (!showSprite || GameManager.IsGamePaused || isInThirdPerson)
             return;
 
         //if a light source is equipped
@@ -379,6 +398,24 @@ public class HandheldTorches : MonoBehaviour
             else
                 DaggerfallUI.DrawTextureWithTexCoords(GetSpriteRect(), currentTexture, curAnimRect, true, Color.white);
         }
+    }
+
+    private void FixedUpdate()
+    {
+        if (eyeOfTheBeholder)
+            isInThirdPerson = CheckForThirdPerson();
+    }
+
+    bool CheckForThirdPerson()
+    {
+        bool thirdPerson = false;
+
+        ModManager.Instance.SendModMessage("Eye Of The Beholder", "isInThirdPerson", null, (string message, object data) =>
+        {
+            thirdPerson = (bool)data;
+        });
+
+        return thirdPerson;
     }
 
     public Rect GetSpriteRect()
@@ -1170,6 +1207,9 @@ public class HandheldTorches : MonoBehaviour
 
     public static void DestroyLightSources()
     {
+        if (Instance.billboardsObject.Count < 1)
+            return;
+
         foreach (GameObject billboard in Instance.billboardsObject)
         {
             Destroy(billboard);
