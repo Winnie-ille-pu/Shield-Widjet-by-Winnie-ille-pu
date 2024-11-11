@@ -120,16 +120,23 @@ public class ShieldWidget : MonoBehaviour
     int indexCurrent;
     int frameCurrent;
 
+    //EOTB compatibility
+    bool eyeOfTheBeholder;
+    bool isInThirdPerson;
+
     void Awake()
     {
+
         mod.LoadSettingsCallback = LoadSettings;
         mod.LoadSettings();
 
-        if (recoil)
-            FormulaHelper.RegisterOverride(mod, "CalculateAttackDamage", (Func<DaggerfallEntity, DaggerfallEntity, bool, int, DaggerfallUnityItem, int>)CalculateAttackDamage);
+        ModCompatibilityChecking();
 
         if (Instance == null)
             Instance = this;
+
+        if (recoil)
+            FormulaHelper.RegisterOverride(mod, "CalculateAttackDamage", (Func<DaggerfallEntity, DaggerfallEntity, bool, int, DaggerfallUnityItem, int>)CalculateAttackDamage);
 
         if (audioSource == null)
             audioSource = GameManager.Instance.WeaponManager.ScreenWeapon.gameObject.GetComponent<DaggerfallAudioSource>();
@@ -156,6 +163,13 @@ public class ShieldWidget : MonoBehaviour
             curAnimRect = new Rect(0, 0, 1, 1);
 
         mod.IsReady = true;
+    }
+
+    private void ModCompatibilityChecking()
+    {
+        //Eye Of The Beholder
+        Mod eotb = ModManager.Instance.GetModFromGUID("2942ea8c-dbd4-42af-bdf9-8199d2f4a0aa");
+        eyeOfTheBeholder = eotb != null ? true : false;
     }
 
     private void LoadSettings(ModSettings settings, ModSettingsChange change)
@@ -329,7 +343,7 @@ public class ShieldWidget : MonoBehaviour
     {
         GUI.depth = 0;
 
-        if (shieldTexture == null || GameManager.Instance.PlayerEntity == null)
+        if (shieldTexture == null || GameManager.Instance.PlayerEntity == null || isInThirdPerson)
             return;
 
         //if off-hand is shield
@@ -347,6 +361,24 @@ public class ShieldWidget : MonoBehaviour
 
             DaggerfallUI.DrawTextureWithTexCoords(GetShieldRect(), shieldTexture, curAnimRect, true, GameManager.Instance.WeaponManager.ScreenWeapon.Tint);
         }
+    }
+
+    private void FixedUpdate()
+    {
+        if (eyeOfTheBeholder)
+            isInThirdPerson = CheckForThirdPerson();
+    }
+
+    bool CheckForThirdPerson()
+    {
+        bool thirdPerson = false;
+
+        ModManager.Instance.SendModMessage("Eye Of The Beholder", "isInThirdPerson", null, (string message, object data) =>
+        {
+            thirdPerson = (bool)data;
+        });
+
+        return thirdPerson;
     }
 
     private void LateUpdate()
@@ -695,24 +727,23 @@ public class ShieldWidget : MonoBehaviour
                 }
             }
 
-
             if (flipped)
             {
                 shieldPositionTarget = new Rect(
-                    screenRect.x + screenRect.width - (shieldTexture.width * scale) * weaponScaleX,
-                    screenRect.y + screenRect.height - (shieldTexture.height * 0.75f * scale) * weaponScaleY - weaponOffsetHeight,
+                    screenRect.x + screenRect.width - (shieldTexture.width * scale) * (2 - offsetX) * weaponScaleX,
+                    screenRect.y + screenRect.height - (shieldTexture.height * scale) * offsetY * weaponScaleY - weaponOffsetHeight,
                     shieldTexture.width * scale * weaponScaleX,
                     shieldTexture.height * scale * weaponScaleY
-                );
+                    );
             }
             else
             {
                 shieldPositionTarget = new Rect(
-                    screenRect.x,
-                    screenRect.y + screenRect.height - (shieldTexture.height * 0.75f * scale) * weaponScaleY - weaponOffsetHeight,
+                    screenRect.x + (screenRect.width * 0.5f) - (shieldTexture.width * scale) * offsetX * weaponScaleX,
+                    screenRect.y + screenRect.height - (shieldTexture.height * scale) * offsetY * weaponScaleY - weaponOffsetHeight,
                     shieldTexture.width * scale * weaponScaleX,
                     shieldTexture.height * scale * weaponScaleY
-                );
+                    );
             }
 
             return;

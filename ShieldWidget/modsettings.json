@@ -289,7 +289,7 @@
                 {
                     "Value": false,
                     "Name": "EnableAnimation",
-                    "Description": "This will disregard the Shield Offset variables",
+                    "Description": "",
                     "$version": "v1",
                     "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.ToggleKey"
                 },
