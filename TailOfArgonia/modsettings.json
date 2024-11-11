@@ -1,0 +1,170 @@
+{
+    "Version": null,
+    "Sections": [
+        {
+            "Name": "Modules",
+            "Description": "",
+            "IsAdvanced": false,
+            "Keys": [
+                {
+                    "Value": true,
+                    "Name": "ViewDistance",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.ToggleKey"
+                },
+                {
+                    "Value": true,
+                    "Name": "Fog",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.ToggleKey"
+                },
+                {
+                    "Value": true,
+                    "Name": "SmoothClipping",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.ToggleKey"
+                }
+            ],
+            "$version": "v1"
+        },
+        {
+            "Name": "-",
+            "Description": null,
+            "IsAdvanced": false,
+            "Keys": [],
+            "$version": "v1"
+        },
+        {
+            "Name": "ViewDistance",
+            "Description": "Reload your game or travel to another location to apply changes to Terrain Distance",
+            "IsAdvanced": false,
+            "Keys": [
+                {
+                    "Options": [
+                        "32",
+                        "64",
+                        "128",
+                        "256",
+                        "512",
+                        "1024",
+                        "2048",
+                        "4096"
+                    ],
+                    "Value": 1,
+                    "Name": "Maximum",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.MultipleChoiceKey"
+                }
+            ],
+            "$version": "v1"
+        },
+        {
+            "Name": "--",
+            "Description": null,
+            "IsAdvanced": false,
+            "Keys": [],
+            "$version": "v1"
+        },
+        {
+            "Name": "Fog",
+            "Description": null,
+            "IsAdvanced": false,
+            "Keys": [
+                {
+                    "Options": [
+                        "Linear",
+                        "Exponential",
+                        "ExponentialSquared"
+                    ],
+                    "Value": 0,
+                    "Name": "Type",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.MultipleChoiceKey"
+                },
+                {
+                    "Min": 0,
+                    "Max": 100,
+                    "Value": 33,
+                    "Name": "LinearStartDistance",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderIntKey"
+                },
+                {
+                    "Min": 0,
+                    "Max": 100,
+                    "Value": 67,
+                    "Name": "LinearEndDistance",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderIntKey"
+                },
+                {
+                    "Min": 0.0,
+                    "Max": 2.0,
+                    "Value": 1.0,
+                    "Name": "ExponentialDensityOffset",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderFloatKey"
+                }
+            ],
+            "$version": "v1"
+        },
+        {
+            "Name": "SmoothClipping",
+            "Description": null,
+            "IsAdvanced": false,
+            "Keys": [
+                {
+                    "Min": 0,
+                    "Max": 75,
+                    "Value": 60,
+                    "Name": "StartDistance",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderIntKey"
+                },
+                {
+                    "Options": [
+                        "4x4",
+                        "8x8"
+                    ],
+                    "Value": 0,
+                    "Name": "DitherSize",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.MultipleChoiceKey"
+                }
+            ],
+            "$version": "v1"
+        },
+        {
+            "Name": "---",
+            "Description": null,
+            "IsAdvanced": false,
+            "Keys": [],
+            "$version": "v1"
+        },
+        {
+            "Name": "Debug",
+            "Description": null,
+            "IsAdvanced": false,
+            "Keys": [
+                {
+                    "Value": false,
+                    "Name": "ShowMessages",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.ToggleKey"
+                }
+            ],
+            "$version": "v1"
+        }
+    ]
+}

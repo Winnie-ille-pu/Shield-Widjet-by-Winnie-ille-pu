@@ -1,0 +1,22 @@
+{
+    "ModTitle": "Tail of Argonia",
+    "ModVersion": "1.1.1",
+    "ModAuthor": "RedRoryOTheGlen",
+    "ContactInfo": "rmufrancisco@gmail.com",
+    "DFUnity_Version": "1.1.1",
+    "ModDescription": "Adds controls to lower DFU's view distance even further as well as modify fog settings.",
+    "GUID": "15c78e47-0de6-4eb1-88df-6e2d4a10f12b",
+    "Files": [
+        "Assets/Game/Mods/TailOfArgonia/Scripts/TailOfArgonia.cs",
+        "Assets/Game/Mods/TailOfArgonia/modsettings.json",
+        "Assets/Game/Mods/TailOfArgonia/Textures/BayerDither8x8.png",
+        "Assets/Game/Mods/TailOfArgonia/Textures/BayerDither4x4.png",
+        "Assets/Game/Mods/TailOfArgonia/Shaders/DaggerfallDefaultDither.shader",
+        "Assets/Game/Mods/TailOfArgonia/Shaders/DaggerfallTilemapTextureArrayDither.shader",
+        "Assets/Game/Mods/TailOfArgonia/Shaders/DaggerfallTilemapDither.shader",
+        "Assets/Game/Mods/TailOfArgonia/Shaders/DaggerfallBillboardBatchNoShadowsDither.shader",
+        "Assets/Game/Mods/TailOfArgonia/Shaders/DaggerfallBillboardBatchDither.shader",
+        "Assets/Game/Mods/TailOfArgonia/Shaders/DaggerfallBillboardDither.shader",
+        "Assets/Game/Mods/TailOfArgonia/TailOfArgonia.dfmod.json"
+    ]
+}
