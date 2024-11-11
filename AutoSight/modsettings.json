@@ -91,8 +91,8 @@
                 },
                 {
                     "Min": 1,
-                    "Max": 50,
-                    "Value": 25,
+                    "Max": 100,
+                    "Value": 50,
                     "Name": "Radius",
                     "Description": "Angle threshold for valid targets based on FOV",
                     "$version": "v1",
@@ -132,11 +132,31 @@
                     "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderFloatKey"
                 },
                 {
+                    "Options": [
+                        "Key",
+                        "Double-Tap"
+                    ],
+                    "Value": 0,
+                    "Name": "InputMode",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.MultipleChoiceKey"
+                },
+                {
                     "Value": "LeftShift",
-                    "Name": "Input",
+                    "Name": "KeyInput",
                     "Description": "Key for enabling quickturn inputs",
                     "$version": "v1",
                     "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.TextKey"
+                },
+                {
+                    "Min": 0.0,
+                    "Max": 1.0,
+                    "Value": 0.2,
+                    "Name": "TapTime",
+                    "Description": "Duration for double-tap inputs",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderFloatKey"
                 }
             ],
             "$version": "v1"

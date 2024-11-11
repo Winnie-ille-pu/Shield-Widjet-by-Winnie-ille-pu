@@ -46,8 +46,13 @@ public class AutoSight : MonoBehaviour
     Vector2 viewOffsetInput = Vector2.zero;
 
     bool quickturn;
+    public int quickturnMode;   //0 = Key, 1 = Double-Tap
     string quickturnKeyString;
     KeyCode quickturnKey = KeyCode.LeftShift;
+    public InputManager.Actions quickTurnTapLastAction;
+    public float quickTurnTapTime = 0.2f;
+    float quickTurnTapTimer;
+
     IEnumerator quickturning;
     public float quickturnDuration = 1;
 
@@ -134,8 +139,10 @@ public class AutoSight : MonoBehaviour
         {
             quickturn = settings.GetValue<bool>("Quickturn", "Enable");
             quickturnDuration = settings.GetValue<float>("Quickturn", "Duration");
-            quickturnKeyString = settings.GetValue<string>("Quickturn", "Input");
+            quickturnMode = settings.GetValue<int>("Quickturn", "InputMode");
+            quickturnKeyString = settings.GetValue<string>("Quickturn", "KeyInput");
             quickturnKey = SetKeyFromText(quickturnKeyString);
+            quickTurnTapTime = settings.GetValue<float>("Quickturn", "TapTime");
         }
         if (change.HasChanged("Autopitch"))
         {
@@ -256,18 +263,84 @@ public class AutoSight : MonoBehaviour
         {
             if (quickturning == null)
             {
-                if (InputManager.Instance.GetKey(quickturnKey))
+                if (quickturnMode == 0)
                 {
-                    if (!InputManager.Instance.HasAction(InputManager.Actions.MoveForwards))
+                    if (InputManager.Instance.GetKey(quickturnKey))
                     {
-                        if (InputManager.Instance.HasAction(InputManager.Actions.MoveBackwards))
-                            QuickTurn(180);
+                        if (!InputManager.Instance.HasAction(InputManager.Actions.MoveForwards))
+                        {
+                            if (InputManager.Instance.HasAction(InputManager.Actions.MoveBackwards))
+                                QuickTurn(180);
 
-                        if (InputManager.Instance.HasAction(InputManager.Actions.MoveRight))
-                            QuickTurn(90);
+                            if (InputManager.Instance.HasAction(InputManager.Actions.MoveRight))
+                                QuickTurn(90);
 
-                        if (InputManager.Instance.HasAction(InputManager.Actions.MoveLeft))
-                            QuickTurn(-90);
+                            if (InputManager.Instance.HasAction(InputManager.Actions.MoveLeft))
+                                QuickTurn(-90);
+                        }
+                    }
+                }
+                else if (quickturnMode == 1)
+                {
+                    if (quickTurnTapLastAction != InputManager.Actions.Unknown)
+                    {
+                        if (InputManager.Instance.ActionStarted(quickTurnTapLastAction))
+                        {
+                            if (quickTurnTapLastAction == InputManager.Actions.MoveBackwards)
+                                QuickTurn(180);
+                            else if(quickTurnTapLastAction == InputManager.Actions.MoveRight)
+                                QuickTurn(90);
+                            else if (quickTurnTapLastAction == InputManager.Actions.MoveLeft)
+                                QuickTurn(-90);
+
+                            quickTurnTapLastAction = InputManager.Actions.Unknown;
+                        }
+                        else
+                        {
+                            if (InputManager.Instance.ActionStarted(InputManager.Actions.MoveBackwards))
+                            {
+                                quickTurnTapLastAction = InputManager.Actions.MoveBackwards;
+                                quickTurnTapTimer = 0;
+                            }
+
+                            if (InputManager.Instance.ActionStarted(InputManager.Actions.MoveRight))
+                            {
+                                quickTurnTapLastAction = InputManager.Actions.MoveRight;
+                                quickTurnTapTimer = 0;
+                            }
+
+                            if (InputManager.Instance.ActionStarted(InputManager.Actions.MoveLeft))
+                            {
+                                quickTurnTapLastAction = InputManager.Actions.MoveLeft;
+                                quickTurnTapTimer = 0;
+                            }
+                        }
+
+                        //if timer is past time, reset last action, else increment timer
+                        if (quickTurnTapTimer > quickTurnTapTime)
+                            quickTurnTapLastAction = InputManager.Actions.Unknown;
+                        else
+                            quickTurnTapTimer += Time.deltaTime;
+                    }
+                    else
+                    {
+                        if (InputManager.Instance.ActionStarted(InputManager.Actions.MoveBackwards))
+                        {
+                            quickTurnTapLastAction = InputManager.Actions.MoveBackwards;
+                            quickTurnTapTimer = 0;
+                        }
+
+                        if (InputManager.Instance.ActionStarted(InputManager.Actions.MoveRight))
+                        {
+                            quickTurnTapLastAction = InputManager.Actions.MoveRight;
+                            quickTurnTapTimer = 0;
+                        }
+
+                        if (InputManager.Instance.ActionStarted(InputManager.Actions.MoveLeft))
+                        {
+                            quickTurnTapLastAction = InputManager.Actions.MoveLeft;
+                            quickTurnTapTimer = 0;
+                        }
                     }
                 }
             }
@@ -384,21 +457,9 @@ public class AutoSight : MonoBehaviour
         if (!GameManager.Instance.PlayerMotor.IsGrounded)
             return;
 
-        float height = 1.8f;
+        float height = GameManager.Instance.PlayerController.height;
 
-        if (GameManager.Instance.PlayerMotor.IsCrouching)
-            height = 0.9f;
-        if (GameManager.Instance.PlayerMotor.IsRiding)
-            height = 2.6f;
-        if (GameManager.Instance.PlayerMotor.IsSwimming)
-        {
-            if (GameManager.Instance.PlayerMotor.IsRiding)
-                height = 0.6f;
-            else
-                height = 0.3f;
-        }
-
-        Vector3 originPlayer = body.transform.position + (Vector3.up * 0.9f);
+        Vector3 originPlayer = body.transform.position + (Vector3.up * height * 0.5f);
 
         Vector3 point = Vector3.zero;
 
@@ -591,6 +652,9 @@ public class AutoSight : MonoBehaviour
 
     bool IsValidTarget(DaggerfallEntityBehaviour target)
     {
+        if (target.Entity.IsMagicallyConcealed)
+            return false;
+
         Vector3 targetVector = target.transform.position - eye.transform.position;
 
         float distance = targetVector.magnitude;
