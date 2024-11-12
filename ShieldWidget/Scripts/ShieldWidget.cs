@@ -162,14 +162,36 @@ public class ShieldWidget : MonoBehaviour
         else
             curAnimRect = new Rect(0, 0, 1, 1);
 
+        mod.MessageReceiver = MessageReceiver;
         mod.IsReady = true;
+    }
+
+    void MessageReceiver(string message, object data, DFModMessageCallback callBack)
+    {
+        switch (message)
+        {
+            case "onToggleOffset":
+                isInThirdPerson = (bool)data;
+                break;
+
+            default:
+                Debug.LogErrorFormat("{0}: unknown message received ({1}).", this, message);
+                break;
+        }
     }
 
     private void ModCompatibilityChecking()
     {
         //Eye Of The Beholder
         Mod eotb = ModManager.Instance.GetModFromGUID("2942ea8c-dbd4-42af-bdf9-8199d2f4a0aa");
-        eyeOfTheBeholder = eotb != null ? true : false;
+        //eyeOfTheBeholder = eotb != null ? true : false;
+        if (eotb != null)
+            ModManager.Instance.SendModMessage("Eye Of The Beholder", "onToggleOffset", "Shield Widget", null);
+    }
+
+    public void OnToggleOffset(bool offsetCurrent)
+    {
+        isInThirdPerson = offsetCurrent;
     }
 
     private void LoadSettings(ModSettings settings, ModSettingsChange change)
