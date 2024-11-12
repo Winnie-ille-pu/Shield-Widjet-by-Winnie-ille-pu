@@ -12,6 +12,7 @@ using DaggerfallWorkshop.Game.Serialization;
 public class EyeOfTheBeholder : MonoBehaviour
 {
     public const string IS_IN_THIRD_PERSON = "isInThirdPerson";
+    public const string ON_TOGGLE_OFFSET = "onToggleOffset";
 
     public static EyeOfTheBeholder Instance;
 
@@ -164,9 +165,7 @@ public class EyeOfTheBeholder : MonoBehaviour
 
     bool debugMessages;
 
-    public delegate void OnToggleOffset(bool offsetCurrent);
-    public static OnToggleOffset OnToggleOffsetEvent;
-    List<bool> toggleOffsets = new List<bool>();
+    List<string> mods = new List<string>();
 
     static Mod mod;
     [Invoke(StateManager.StateTypes.Start, 0)]
@@ -380,6 +379,10 @@ public class EyeOfTheBeholder : MonoBehaviour
         {
             case IS_IN_THIRD_PERSON:
                 callBack?.Invoke(IS_IN_THIRD_PERSON, offset);
+                break;
+
+            case ON_TOGGLE_OFFSET:
+                mods.Add((string)data);
                 break;
 
             default:
@@ -926,8 +929,14 @@ public class EyeOfTheBeholder : MonoBehaviour
 
         offset = state;
 
-        if (OnToggleOffsetEvent != null)
-            OnToggleOffsetEvent(offset);
+        if (mods.Count > 0)
+            UpdateMods(offset);
+    }
+
+    void UpdateMods(bool state)
+    {
+        foreach (string mod in mods)
+            ModManager.Instance.SendModMessage(mod, "onToggleOffset", offset, null);
     }
 
     void ToggleBillboard(bool state)
