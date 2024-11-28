@@ -1,0 +1,14 @@
+{
+    "ModTitle": "Weapon Widget",
+    "ModVersion": "1.0",
+    "ModAuthor": "RedRoryOTheGlen",
+    "ContactInfo": "rmufrancisco@gmail.com",
+    "DFUnity_Version": "1.1.1",
+    "ModDescription": "Custom first-person weapon sprite handler for new features",
+    "GUID": "9f301f2b-298b-43d8-8f3f-c54deaa841e0",
+    "Files": [
+        "Assets/Game/Mods/FPSWeaponClone/Scripts/FPSWeaponClone.cs",
+        "Assets/Game/Mods/FPSWeaponClone/modsettings.json",
+        "Assets/Game/Mods/FPSWeaponClone/FPSWeaponClone.dfmod.json"
+    ]
+}
