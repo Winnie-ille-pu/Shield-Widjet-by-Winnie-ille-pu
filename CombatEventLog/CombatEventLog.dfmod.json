@@ -1,0 +1,12 @@
+{
+    "ModTitle": "Combat Log",
+    "ModVersion": "1.0",
+    "ModAuthor": "RedRoryOTheGlen",
+    "ContactInfo": "rmufrancisco@gmail.com",
+    "DFUnity_Version": "1.1.1",
+    "ModDescription": "Mod that demonstrates VCEH's functionality.",
+    "GUID": "5905c1c1-3055-44d5-8e81-dd7853656163",
+    "Files": [
+        "Assets/Game/Mods/CombatEventLog/Scripts/CombatLog.cs"
+    ]
+}
