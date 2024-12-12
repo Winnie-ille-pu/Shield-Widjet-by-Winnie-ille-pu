@@ -78,9 +78,12 @@ public class FPSWeaponClone : MonoBehaviour
     IEnumerator animating;
 
     bool swing;
-    int swingWindup; //0 = Hide, 1 = Offset
+    int swingWindup; //0 = Hide, 1 = Idle, 2 = First Frame
     int swingRecovery; //0 = Hide, 1 = LastFrame
     float swingSpeed;
+    bool swingAlignmentOverride;
+    bool swingRecoveryOverride;
+    bool swingNoDaggerRight;
 
     //FPS Weapon Movement refugees
     bool bob = true;
@@ -94,16 +97,14 @@ public class FPSWeaponClone : MonoBehaviour
     bool bobWhileIdle = true;
 
     bool offset = true;
-    bool offsetted;
     float offsetSpeed = 1;
     float offsetSpeedLive
     {
         get
         {
-            return ((float)GameManager.Instance.PlayerEntity.Stats.LiveSpeed / 50) * offsetSpeed;
+            return ((float)GameManager.Instance.PlayerEntity.Stats.LiveSpeed / 100) * offsetSpeed;
         }
     }
-    WeaponStates offsetState = WeaponStates.Idle;
     Vector2 offsetCurrent;
     Vector2 offsetTarget;
 
@@ -128,6 +129,11 @@ public class FPSWeaponClone : MonoBehaviour
 
     bool leftHanded;
     bool ambidexterity;
+    bool doubleScale;
+    bool recoil;
+
+    float recoilChance = 0.5f;
+    bool hasCurrentAttackHit;
 
     //EOTB compatibility
     bool isInThirdPerson;
@@ -214,12 +220,17 @@ public class FPSWeaponClone : MonoBehaviour
             offset = settings.GetValue<bool>("Modules", "Offset");
             stepTransforms = settings.GetValue<bool>("Modules", "Step");
             inertia = settings.GetValue<bool>("Modules", "Inertia");
+            doubleScale = settings.GetValue<bool>("Modules", "DoubleScaleTextures");
+            recoil = settings.GetValue<bool>("Modules", "Recoil");
         }
         if (change.HasChanged("Swings"))
         {
             swingWindup = settings.GetValue<int>("Swings", "Windup");
             swingRecovery = settings.GetValue<int>("Swings", "Recovery");
             swingSpeed = settings.GetValue<float>("Swings", "Speed");
+            swingAlignmentOverride = settings.GetValue<bool>("Swings", "VanillaAlignmentOverride");
+            swingRecoveryOverride = settings.GetValue<bool>("Swings", "VanillaRecoveryOverride");
+            swingNoDaggerRight = settings.GetValue<bool>("Swings", "NoDaggerMirroredStrikes");
         }
         if (change.HasChanged("Offset"))
         {
@@ -227,7 +238,7 @@ public class FPSWeaponClone : MonoBehaviour
         }
         if (change.HasChanged("Bob"))
         {
-            bobLength = settings.GetValue<float>("Bob", "Length");
+            bobLength = (float)settings.GetValue<int>("Bob", "Length")/100;
             bobOffset = settings.GetValue<float>("Bob", "Offset");
             bobSizeXMod = settings.GetValue<float>("Bob", "SizeX") * 2;
             bobSizeYMod = settings.GetValue<float>("Bob", "SizeY") * 2;
@@ -245,8 +256,12 @@ public class FPSWeaponClone : MonoBehaviour
         }
         if (change.HasChanged("Step"))
         {
-            stepLength = settings.GetValue<int>("Step", "Length") * 16;
+            stepLength = settings.GetValue<int>("Step", "Length");
             stepCondition = settings.GetValue<int>("Step", "Condition");
+        }
+        if (change.HasChanged("Recoil"))
+        {
+            recoilChance = (float)settings.GetValue<int>("Recoil", "Chance")/100;
         }
     }
     private void ModCompatibilityChecking()
@@ -259,10 +274,36 @@ public class FPSWeaponClone : MonoBehaviour
                 isInThirdPerson = toggleState;
             }));
         }
+
+        //listen to Combat Event Handler for attacks
+        Mod ceh = ModManager.Instance.GetModFromGUID("fb086c76-38e7-4d83-91dc-f29e6f1bb17e");
+        if (ceh != null)
+        {
+            ModManager.Instance.SendModMessage(ceh.Title, "onAttackDamageCalculated", (Action<DaggerfallEntity, DaggerfallEntity, DaggerfallUnityItem, int, int>)OnAttackDamageCalculated);
+        }
     }
 
-    private void Update()
+    public void OnAttackDamageCalculated(DaggerfallEntity attacker, DaggerfallEntity target, DaggerfallUnityItem weapon, int bodyPart, int damage)
     {
+        //if attacker is not the player or there is no target, do nothing
+        if (attacker != GameManager.Instance.PlayerEntity || target == null || !recoil)
+            return;
+
+        if (UnityEngine.Random.value > recoilChance)
+            return;
+
+        if (damage > 0)
+            hasCurrentAttackHit = true;
+        else
+        {
+            //count as a hit if the target parries the attack
+            EnemyEntity targetEnemy = target as EnemyEntity;
+            if (targetEnemy != null)
+            {
+                if (targetEnemy.MobileEnemy.ParrySounds)
+                    hasCurrentAttackHit = true;
+            }
+        }
     }
 
     void PlayAttackAnimation(WeaponStates state)
@@ -274,218 +315,186 @@ public class FPSWeaponClone : MonoBehaviour
             animating = null;*/
         }
 
-        if (swing)
-            animating = PlayWeaponAnimation(state);
+        if (currentWeaponType == WeaponTypes.Bow)
+            animating = PlayBowAnimation();
         else
-            animating = PlayVanillaWeaponAnimation(state);
+        {
+            if (swing)
+                animating = PlayWeaponAnimation(state);
+            else
+                animating = PlayVanillaWeaponAnimation(state);
+        }
 
+        hasCurrentAttackHit = false;
         StartCoroutine(animating);
     }
 
     IEnumerator PlayWeaponAnimation(WeaponStates state)
     {
+        hasCurrentAttackHit = false;
+
         float tickTime = (GetAnimTickTime()/5)/swingSpeed;
 
-        if (currentWeaponType != WeaponTypes.Bow)
-        {
-            currentFrame = 0;
+        if (swingWindup == 2)
+            ChangeWeaponState(state);
+        else
             ChangeWeaponState(WeaponStates.Idle);
-            UpdateWeapon();
 
-            //wait for hitframe
-            while (ScreenWeapon.GetCurrentFrame() < ScreenWeapon.GetHitFrame())
+        //wait for hitframe
+        while (ScreenWeapon.GetCurrentFrame() < ScreenWeapon.GetHitFrame())
+        {
+            if (swingWindup == 2)
+                currentFrame = 0;
+            else if (swingWindup == 1)
             {
-                if (swingWindup == 1)
+                if (currentWeaponType == WeaponTypes.Werecreature)
                 {
-                    if (currentWeaponType == WeaponTypes.Melee)
+                    offsetTarget = new Vector2(0, 1);
+                }
+                else if (currentWeaponType == WeaponTypes.Melee)
+                {
+                    offsetTarget = new Vector2(1, 1);
+                }
+                else
+                {
+                    if (ScreenWeapon.FlipHorizontal)
                     {
-                        offsetTarget = new Vector2(-1, 1);
+                        if (state == WeaponStates.StrikeUp)
+                            offsetTarget = new Vector2(-1, 1);
+                        else if (state == WeaponStates.StrikeDownLeft || state == WeaponStates.StrikeLeft)
+                            offsetTarget = new Vector2(-1, 1);
+                        else if (state == WeaponStates.StrikeDown || state == WeaponStates.StrikeDownRight)
+                            offsetTarget = new Vector2(1, -1);
+                        else if (state == WeaponStates.StrikeRight)
+                            offsetTarget = new Vector2(1, 0);
                     }
                     else
                     {
-                        if (ScreenWeapon.FlipHorizontal)
-                        {
-                            if (state == WeaponStates.StrikeUp)
-                                offsetTarget = new Vector2(-1, 1);
-                            else if (state == WeaponStates.StrikeDownLeft || state == WeaponStates.StrikeLeft)
-                                offsetTarget = new Vector2(-1, 1);
-                            else if (state == WeaponStates.StrikeDown || state == WeaponStates.StrikeDownRight)
-                                offsetTarget = new Vector2(1, -1);
-                            else if (state == WeaponStates.StrikeRight)
-                                offsetTarget = new Vector2(1, 0);
-                        }
-                        else
-                        {
-                            if (state == WeaponStates.StrikeUp)
-                                offsetTarget = new Vector2(-1, 1);
-                            else if (state == WeaponStates.StrikeRight || state == WeaponStates.StrikeDownRight)
-                                offsetTarget = new Vector2(-1, 1);
-                            else if (state == WeaponStates.StrikeDown || state == WeaponStates.StrikeDownLeft)
-                                offsetTarget = new Vector2(1, -1);
-                            else if (state == WeaponStates.StrikeLeft)
-                                offsetTarget = new Vector2(1, 0);
-                        }
+                        if (state == WeaponStates.StrikeUp)
+                            offsetTarget = new Vector2(-1, 1);
+                        else if (state == WeaponStates.StrikeRight || state == WeaponStates.StrikeDownRight)
+                            offsetTarget = new Vector2(-1, 1);
+                        else if (state == WeaponStates.StrikeDown || state == WeaponStates.StrikeDownLeft)
+                            offsetTarget = new Vector2(1, -1);
+                        else if (state == WeaponStates.StrikeLeft)
+                            offsetTarget = new Vector2(1, 0);
                     }
                 }
-                else
-                    currentFrame = -1;
-                yield return new WaitForEndOfFrame();
             }
+            else
+                currentFrame = -1;
+            yield return new WaitForEndOfFrame();
+        }
 
-            currentFrame = 0;
-            ChangeWeaponState(state);
-            UpdateWeapon();
-            yield return new WaitForSeconds(tickTime);
+        ChangeWeaponState(state);
+        yield return new WaitForSeconds(tickTime);
+        //yield return new WaitForEndOfFrame();
 
-            //play the swing animation
-            while (currentFrame < weaponAnims[(int)weaponState].NumFrames-1)
+        //play the swing animation
+        if (hasCurrentAttackHit)
+        {
+            ScreenWeapon.PlaySwingSound();
+
+            int hitFrame = ScreenWeapon.GetHitFrame();
+
+            while (currentFrame < hitFrame)
             {
                 offsetTarget = Vector2.zero;
                 offsetCurrent = Vector2.zero;
-
                 currentFrame++;
                 UpdateWeapon();
                 yield return new WaitForSeconds(tickTime);
             }
 
-            //wait for end of attack
-            while (ScreenWeapon.IsAttacking())
-            {
-                if (swingRecovery == 1)
-                {
-                    currentFrame = weaponAnims[(int)weaponState].NumFrames - 1;
-                }
-                else
-                {
-                    if (state != WeaponStates.StrikeUp)
-                        currentFrame = -1;
-                    else
-                        currentFrame = weaponAnims[(int)weaponState].NumFrames - 1;
-                }
-                yield return new WaitForEndOfFrame();
-            }
+            yield return new WaitForSeconds(GameManager.classicUpdateInterval);
 
-            //reset to idle
-            currentFrame = 0;
-            ChangeWeaponState(WeaponStates.Idle);
-            UpdateWeapon();
+            while (currentFrame > 0)
+            {
+                /*if ( state == WeaponStates.StrikeDownLeft)
+                    offsetTarget = Vector2.right;
+                else if (state == WeaponStates.StrikeLeft || state == WeaponStates.StrikeUp || state == WeaponStates.StrikeDown)
+                    offsetTarget = Vector2.right + Vector2.up;
+                else if (state == WeaponStates.StrikeDownRight)
+                    offsetTarget = Vector2.left;
+                else if (state == WeaponStates.StrikeRight)
+                    offsetTarget = Vector2.left + Vector2.up;*/
+                offsetCurrent = Vector2.zero;
+                offsetTarget = Vector2.zero;
+
+                currentFrame--;
+                UpdateWeapon();
+                yield return new WaitForSeconds(tickTime);
+            }
         }
         else
         {
-            if (DaggerfallUnity.Settings.BowDrawback)
+            while (currentFrame < weaponAnims[(int)weaponState].NumFrames - 1)
             {
-                currentFrame = 0;
-                ChangeWeaponState(WeaponStates.StrikeUp);
+                offsetTarget = Vector2.zero;
+                offsetCurrent = Vector2.zero;
+                currentFrame++;
                 UpdateWeapon();
-
-
-                float drawTime = 12;
-                float drawTimer = 0;
-                bool drawOver = false;
-                //play the draw animation
-                while (InputManager.Instance.HasAction(InputManager.Actions.SwingWeapon))
-                {
-                    if (drawTimer > drawTime || InputManager.Instance.ActionStarted(InputManager.Actions.ActivateCenterObject))
-                    {
-                        drawOver = true;
-                        break;
-                    }
-
-                    offsetTarget = Vector2.zero;
-                    offsetCurrent = Vector2.zero;
-
-                    if (currentFrame < 3)
-                    {
-                        currentFrame++;
-                        UpdateWeapon();
-                        drawTimer += GameManager.classicUpdateInterval;
-                        yield return new WaitForSeconds(GameManager.classicUpdateInterval);
-                    }
-                    else
-                    {
-                        drawTimer += Time.deltaTime;
-                        yield return new WaitForEndOfFrame();
-                    }
-                }
-
-                if (!drawOver)
-                {
-                    ChangeWeaponState(WeaponStates.StrikeDown);
-                    UpdateWeapon();
-                    yield return new WaitForSeconds(GameManager.classicUpdateInterval);
-
-                    //play the rest of the animation
-                    while (currentFrame < weaponAnims[(int)weaponState].NumFrames-1)
-                    {
-                        offsetTarget = Vector2.zero;
-                        offsetCurrent = Vector2.zero;
-
-                        currentFrame++;
-                        UpdateWeapon();
-                        yield return new WaitForSeconds(GameManager.classicUpdateInterval);
-                    }
-
-                    float timeCooldown = FormulaHelper.GetBowCooldownTime(GameManager.Instance.PlayerEntity);
-                    float timerCooldown = 0;
-                    //wait for end of cooldown
-                    while (timerCooldown < timeCooldown)
-                    {
-                        offsetTarget = Vector2.up;
-
-                        timerCooldown += Time.deltaTime;
-
-                        yield return new WaitForEndOfFrame();
-                    }
-                } else
-                {
-                    //reverse the animation
-                    while (currentFrame > 0)
-                    {
-                        offsetTarget = Vector2.zero;
-                        offsetCurrent = Vector2.zero;
-
-                        currentFrame--;
-                        UpdateWeapon();
-                        yield return new WaitForSeconds(GameManager.classicUpdateInterval);
-                    }
-                }
-                    //reset to idle
-                    currentFrame = 0;
-                    ChangeWeaponState(WeaponStates.Idle);
-                    UpdateWeapon();
-            }
-            else
-            {
-                currentFrame = 3;
-                ChangeWeaponState(WeaponStates.StrikeDown);
-                UpdateWeapon();
-                yield return new WaitForSeconds(GameManager.classicUpdateInterval);
-
-                //play the shoot animation
-                while (currentFrame < weaponAnims[(int)weaponState].NumFrames-1)
-                {
-                    offsetTarget = Vector2.zero;
-                    offsetCurrent = Vector2.zero;
-
-                    currentFrame++;
-                    UpdateWeapon();
-                    yield return new WaitForSeconds(GameManager.classicUpdateInterval);
-                }
-
-                //wait for end of attack
-                while (ScreenWeapon.IsAttacking())
-                {
-                    offsetTarget = Vector2.up;
-                    yield return new WaitForEndOfFrame();
-                }
-
-                //reset to idle
-                currentFrame = 3;
-                ChangeWeaponState(WeaponStates.StrikeDown);
-                UpdateWeapon();
+                yield return new WaitForSeconds(tickTime);
             }
         }
 
+        bool recoveryOverride = false;
+        if (swingRecoveryOverride)
+            recoveryOverride = CheckForRecoveryOverride();
+
+        //wait for end of attack
+        while (ScreenWeapon.IsAttacking())
+        {
+            if (recoveryOverride)
+            {
+                if (currentFrame > 0)
+                {
+                    offsetTarget = Vector2.zero;
+                    offsetCurrent = Vector2.zero;
+                    currentFrame--;
+                    UpdateWeapon();
+                    yield return new WaitForSeconds(GameManager.classicUpdateInterval);
+                }
+                else
+                {
+                    if (swingRecovery == 1)
+                        currentFrame = weaponAnims[(int)weaponState].NumFrames - 1;
+                    else
+                        currentFrame = -1;
+
+                    yield return new WaitForEndOfFrame();
+                }
+            }
+            else
+            {
+                if (swingRecovery == 1)
+                    currentFrame = weaponAnims[(int)weaponState].NumFrames - 1;
+                else
+                    currentFrame = -1;
+
+                    yield return new WaitForEndOfFrame();
+            }
+        }
+
+        //reset to idle
+        ChangeWeaponState(WeaponStates.Idle);
+
+        //set current offset
+        float offsetX = 1f;
+        if (currentWeaponType == WeaponTypes.Werecreature)
+        {
+            offsetX = 0f;
+        }
+        else
+        {
+            if (state == WeaponStates.StrikeDown || state == WeaponStates.StrikeUp)
+                offsetX = 0f;
+            else if (state == WeaponStates.StrikeLeft || state == WeaponStates.StrikeDownLeft)
+                offsetX = -1f;
+        }
+        offsetCurrent = new Vector2(offsetX, 1f);
+
+        hasCurrentAttackHit = false;
         //clear coroutine
         animating = null;
     }
@@ -493,126 +502,95 @@ public class FPSWeaponClone : MonoBehaviour
     IEnumerator PlayVanillaWeaponAnimation(WeaponStates state)
     {
         float tickTime = GetAnimTickTime();
-        if (currentWeaponType != WeaponTypes.Bow)
+
+        ChangeWeaponState(state);
+        yield return new WaitForSeconds(tickTime);
+
+        while (currentFrame < weaponAnims[(int)weaponState].NumFrames - 1)
         {
-            currentFrame = 0;
-            ChangeWeaponState(state);
+            offsetTarget = Vector2.zero;
+            offsetCurrent = Vector2.zero;
+
+            currentFrame++;
             UpdateWeapon();
+            yield return new WaitForSeconds(tickTime);
+        }
 
-            while (currentFrame < weaponAnims[(int)weaponState].NumFrames - 1)
-            {
-                offsetTarget = Vector2.zero;
-                offsetCurrent = Vector2.zero;
+        /*//wait for end of attack
+        while (ScreenWeapon.IsAttacking())
+        {
+            currentFrame = -1;
+            yield return new WaitForEndOfFrame();
+        }*/
 
-                currentFrame++;
-                UpdateWeapon();
-                yield return new WaitForSeconds(tickTime);
-            }
-            //wait for end of attack
-            while (ScreenWeapon.IsAttacking())
-            {
-                currentFrame = -1;
-                yield return new WaitForEndOfFrame();
-            }
+        //reset to idle
+        ChangeWeaponState(WeaponStates.Idle);
 
-            //reset to idle
-            currentFrame = 0;
-            ChangeWeaponState(WeaponStates.Idle);
-            UpdateWeapon();
+        //set current offset
+        float offsetX = 1f;
+        if (currentWeaponType == WeaponTypes.Werecreature)
+        {
+            offsetX = 0f;
         }
         else
         {
-            if (DaggerfallUnity.Settings.BowDrawback)
+            if (state == WeaponStates.StrikeDown || state == WeaponStates.StrikeUp)
+                offsetX = 0f;
+            else if (state == WeaponStates.StrikeLeft || state == WeaponStates.StrikeDownLeft)
+                offsetX = -1f;
+        }
+        offsetCurrent = new Vector2(offsetX, 1f);
+
+        
+        //clear coroutine
+        animating = null;
+    }
+
+    IEnumerator PlayBowAnimation()
+    {
+        if (DaggerfallUnity.Settings.BowDrawback)
+        {
+            currentFrame = 0;
+            ChangeWeaponState(WeaponStates.StrikeUp);
+            UpdateWeapon();
+
+
+            float drawTime = 12;
+            float drawTimer = 0;
+            bool drawOver = false;
+            //play the draw animation
+            while (InputManager.Instance.HasAction(InputManager.Actions.SwingWeapon))
             {
-                currentFrame = 0;
-                ChangeWeaponState(WeaponStates.StrikeUp);
-                UpdateWeapon();
-
-
-                float drawTime = 12;
-                float drawTimer = 0;
-                bool drawOver = false;
-                //play the draw animation
-                while (InputManager.Instance.HasAction(InputManager.Actions.SwingWeapon))
+                if (drawTimer > drawTime || InputManager.Instance.ActionStarted(InputManager.Actions.ActivateCenterObject))
                 {
-                    if (drawTimer > drawTime || InputManager.Instance.ActionStarted(InputManager.Actions.ActivateCenterObject))
-                    {
-                        drawOver = true;
-                        break;
-                    }
-
-                    offsetTarget = Vector2.zero;
-                    offsetCurrent = Vector2.zero;
-
-                    if (currentFrame < 3)
-                    {
-                        currentFrame++;
-                        UpdateWeapon();
-                        drawTimer += GameManager.classicUpdateInterval;
-                        yield return new WaitForSeconds(GameManager.classicUpdateInterval);
-                    }
-                    else
-                    {
-                        drawTimer += Time.deltaTime;
-                        yield return new WaitForEndOfFrame();
-                    }
+                    drawOver = true;
+                    break;
                 }
 
-                if (!drawOver)
+                offsetTarget = Vector2.zero;
+                offsetCurrent = Vector2.zero;
+
+                if (currentFrame < 3)
                 {
-                    ChangeWeaponState(WeaponStates.StrikeDown);
+                    currentFrame++;
                     UpdateWeapon();
+                    drawTimer += GameManager.classicUpdateInterval;
                     yield return new WaitForSeconds(GameManager.classicUpdateInterval);
-
-                    //play the rest of the animation
-                    while (currentFrame < weaponAnims[(int)weaponState].NumFrames - 1)
-                    {
-                        offsetTarget = Vector2.zero;
-                        offsetCurrent = Vector2.zero;
-
-                        currentFrame++;
-                        UpdateWeapon();
-                        yield return new WaitForSeconds(GameManager.classicUpdateInterval);
-                    }
-
-                    float timeCooldown = FormulaHelper.GetBowCooldownTime(GameManager.Instance.PlayerEntity);
-                    float timerCooldown = 0;
-                    //wait for end of cooldown
-                    while (timerCooldown < timeCooldown)
-                    {
-                        offsetTarget = Vector2.up;
-
-                        timerCooldown += Time.deltaTime;
-
-                        yield return new WaitForEndOfFrame();
-                    }
                 }
                 else
                 {
-                    //reverse the animation
-                    while (currentFrame > 0)
-                    {
-                        offsetTarget = Vector2.zero;
-                        offsetCurrent = Vector2.zero;
-
-                        currentFrame--;
-                        UpdateWeapon();
-                        yield return new WaitForSeconds(GameManager.classicUpdateInterval);
-                    }
+                    drawTimer += Time.deltaTime;
+                    yield return new WaitForEndOfFrame();
                 }
-                //reset to idle
-                currentFrame = 0;
-                ChangeWeaponState(WeaponStates.Idle);
-                UpdateWeapon();
             }
-            else
+
+            if (!drawOver)
             {
-                currentFrame = 3;
                 ChangeWeaponState(WeaponStates.StrikeDown);
                 UpdateWeapon();
                 yield return new WaitForSeconds(GameManager.classicUpdateInterval);
 
-                //play the shoot animation
+                //play the rest of the animation
                 while (currentFrame < weaponAnims[(int)weaponState].NumFrames - 1)
                 {
                     offsetTarget = Vector2.zero;
@@ -623,24 +601,74 @@ public class FPSWeaponClone : MonoBehaviour
                     yield return new WaitForSeconds(GameManager.classicUpdateInterval);
                 }
 
-                //wait for end of attack
-                while (ScreenWeapon.IsAttacking())
+                float timeCooldown = FormulaHelper.GetBowCooldownTime(GameManager.Instance.PlayerEntity);
+                float timerCooldown = 0;
+                //wait for end of cooldown
+                while (timerCooldown < timeCooldown)
                 {
                     offsetTarget = Vector2.up;
+
+                    timerCooldown += Time.deltaTime;
+
                     yield return new WaitForEndOfFrame();
                 }
-
-                //reset to idle
-                currentFrame = 3;
-                ChangeWeaponState(WeaponStates.StrikeDown);
-                UpdateWeapon();
             }
+            else
+            {
+                //reverse the animation
+                while (currentFrame > 0)
+                {
+                    offsetTarget = Vector2.zero;
+                    offsetCurrent = Vector2.zero;
+
+                    currentFrame--;
+                    UpdateWeapon();
+                    yield return new WaitForSeconds(GameManager.classicUpdateInterval);
+                }
+            }
+            //reset to idle
+            currentFrame = 0;
+            ChangeWeaponState(WeaponStates.Idle);
+            UpdateWeapon();
         }
+        else
+        {
+            currentFrame = 3;
+            ChangeWeaponState(WeaponStates.StrikeDown);
+            UpdateWeapon();
+            yield return new WaitForSeconds(GameManager.classicUpdateInterval);
+
+            //play the shoot animation
+            while (currentFrame < weaponAnims[(int)weaponState].NumFrames - 1)
+            {
+                offsetTarget = Vector2.zero;
+                offsetCurrent = Vector2.zero;
+
+                currentFrame++;
+                UpdateWeapon();
+                yield return new WaitForSeconds(GameManager.classicUpdateInterval);
+            }
+
+            //wait for end of attack
+            while (ScreenWeapon.IsAttacking())
+            {
+                offsetTarget = Vector2.up;
+                yield return new WaitForEndOfFrame();
+            }
+
+            //reset to idle
+            currentFrame = 3;
+            ChangeWeaponState(WeaponStates.StrikeDown);
+            UpdateWeapon();
+        }
+
+        //set current offset
+        offsetCurrent = new Vector2(0, 1);
+
 
         //clear coroutine
         animating = null;
     }
-
     public void ChangeWeaponState(WeaponStates state)
     {
         weaponState = state;
@@ -648,6 +676,12 @@ public class FPSWeaponClone : MonoBehaviour
         // Only reset frame to 0 for bows if idle state
         if (ScreenWeapon.WeaponType != WeaponTypes.Bow || state == WeaponStates.Idle)
             currentFrame = 0;
+
+        if (state != WeaponStates.Idle)
+        {
+            offsetCurrent = Vector2.zero;
+            offsetTarget = Vector2.zero;
+        }
 
         UpdateWeapon();
     }
@@ -717,7 +751,7 @@ public class FPSWeaponClone : MonoBehaviour
         if (updateWeapon)
             UpdateWeapon();
 
-        if (Event.current.type.Equals(EventType.Repaint) && currentFrame != -1 && ShowWeapon && !isInThirdPerson)
+        if (Event.current.type.Equals(EventType.Repaint) && currentFrame != -1 && ShowWeapon && !isInThirdPerson && !(!offset && (GameManager.Instance.WeaponManager.Sheathed || GameManager.Instance.PlayerSpellCasting.IsPlayingAnim || GameManager.Instance.PlayerEffectManager.HasReadySpell)))
         {
             // Draw weapon texture behind other HUD elements
             Texture2D tex = curCustomTexture ? curCustomTexture : weaponAtlas.AtlasTexture;
@@ -729,33 +763,38 @@ public class FPSWeaponClone : MonoBehaviour
     public Rect GetWeaponRect()
     {
         Rect weaponPositionOffset = weaponPosition;
+        bool mirror = GameManager.Instance.WeaponManager.ScreenWeapon.FlipHorizontal;
 
-        if (stepTransforms)
-        {
-            Position = new Vector2(
-                Snapping.Snap(Position.x, stepLength),
-                Snapping.Snap(Position.y, stepLength)
-                );
-        }
-
-        //Adds the Position to the Rect's position
-        weaponPositionOffset.x += Position.x;
+        //Adds the Position to the Rect's position)
+        if (mirror)
+            weaponPositionOffset.x -= Position.x;
+        else
+            weaponPositionOffset.x += Position.x;
         weaponPositionOffset.y += Position.y;
 
         weaponPositionOffset.width *= Scale.x;
         weaponPositionOffset.height *= Scale.y;
 
-        if (stepTransforms && stepCondition > 0)
-        {
-            Offset = new Vector2(
-                Snapping.Snap(Offset.x, stepLength * 0.01f),
-                Snapping.Snap(Offset.y, stepLength * 0.01f)
-                );
-        }
+        /*//Adds the Offset to the Rect's position
+        weaponPositionOffset.x -= weaponPositionOffset.width * 0.5f;
+        weaponPositionOffset.y -= weaponPositionOffset.height * 0.5f;*/
 
         //Adds the Offset to the Rect's position
-        weaponPositionOffset.x += weaponPositionOffset.width * Offset.x;
+        if (mirror)
+            weaponPositionOffset.x -= weaponPositionOffset.width * Offset.x;
+        else
+            weaponPositionOffset.x += weaponPositionOffset.width * Offset.x;
         weaponPositionOffset.y += weaponPositionOffset.height * Offset.y;
+
+        if (stepTransforms)
+        {
+            float length = stepLength * (screenRect.height / 32);
+            weaponPositionOffset.x = Snapping.Snap(weaponPositionOffset.x, length);
+            weaponPositionOffset.y = Snapping.Snap(weaponPositionOffset.y, length);
+        }
+
+        //stop the texture from going higher than its bottom edge
+        weaponPositionOffset.y = Mathf.Clamp(weaponPositionOffset.y, screenRect.height - weaponPositionOffset.height - weaponOffsetHeight, screenRect.height);
 
         return weaponPositionOffset;
     }
@@ -777,15 +816,18 @@ public class FPSWeaponClone : MonoBehaviour
             {
                 SpecificWeapon = ScreenWeapon.SpecificWeapon;
 
-                if (!DaggerfallUnity.Settings.BowDrawback && SpecificWeapon.GetWeaponType() == WeaponTypes.Bow)
+                if (!DaggerfallUnity.Settings.BowDrawback && DaggerfallUnity.Instance.ItemHelper.ConvertItemToAPIWeaponType(SpecificWeapon) == WeaponTypes.Bow)
+                {
                     currentFrame = 3;
-
-                UpdateWeapon();
+                    ChangeWeaponState(WeaponStates.StrikeDown);
+                }
+                else
+                    ChangeWeaponState(WeaponStates.Idle);
             }
             else
             {
                 SpecificWeapon = null;
-                UpdateWeapon();
+                ChangeWeaponState(WeaponStates.Idle);
             }
         }
 
@@ -802,7 +844,7 @@ public class FPSWeaponClone : MonoBehaviour
                     if (ScreenWeapon.FlipHorizontal != leftHanded)
                     {
                         ScreenWeapon.FlipHorizontal = leftHanded;
-                        ScreenWeapon.ChangeWeaponState(WeaponStates.Idle);
+                        ChangeWeaponState(WeaponStates.Idle);
                     }
                 }
                 else
@@ -810,7 +852,7 @@ public class FPSWeaponClone : MonoBehaviour
                     if (ScreenWeapon.FlipHorizontal != !leftHanded)
                     {
                         ScreenWeapon.FlipHorizontal = !leftHanded;
-                        ScreenWeapon.ChangeWeaponState(WeaponStates.Idle);
+                        ChangeWeaponState(WeaponStates.Idle);
                     }
                 }
             }
@@ -822,7 +864,7 @@ public class FPSWeaponClone : MonoBehaviour
                     if (ScreenWeapon.FlipHorizontal != !leftHanded)
                     {
                         ScreenWeapon.FlipHorizontal = !leftHanded;
-                        ScreenWeapon.ChangeWeaponState(WeaponStates.Idle);
+                        ChangeWeaponState(WeaponStates.Idle);
                     }
                 }
                 else
@@ -830,7 +872,7 @@ public class FPSWeaponClone : MonoBehaviour
                     if (ScreenWeapon.FlipHorizontal != leftHanded)
                     {
                         ScreenWeapon.FlipHorizontal = leftHanded;
-                        ScreenWeapon.ChangeWeaponState(WeaponStates.Idle);
+                        ChangeWeaponState(WeaponStates.Idle);
                     }
                 }
             }
@@ -839,7 +881,35 @@ public class FPSWeaponClone : MonoBehaviour
         //check if weapon is attacking and if clone isn't
         if (ScreenWeapon.IsAttacking() && animating == null)
         {
-            PlayAttackAnimation(ScreenWeapon.WeaponState);
+            //Stop dagger from performing an off-hand attack
+            if (swingNoDaggerRight)
+            {
+                if (currentWeaponType == WeaponTypes.Dagger || currentWeaponType == WeaponTypes.Dagger_Magic)
+                {
+                    if (ScreenWeapon.FlipHorizontal)
+                    {
+                        if (ScreenWeapon.WeaponState == WeaponStates.StrikeLeft)
+                            PlayAttackAnimation(WeaponStates.StrikeRight);
+                        else if (ScreenWeapon.WeaponState == WeaponStates.StrikeDownLeft)
+                            PlayAttackAnimation(WeaponStates.StrikeLeft);
+                        else
+                            PlayAttackAnimation(ScreenWeapon.WeaponState);
+                    }
+                    else
+                    {
+                        if (ScreenWeapon.WeaponState == WeaponStates.StrikeRight)
+                            PlayAttackAnimation(WeaponStates.StrikeLeft);
+                        else if (ScreenWeapon.WeaponState == WeaponStates.StrikeDownRight)
+                            PlayAttackAnimation(WeaponStates.StrikeDownLeft);
+                        else
+                            PlayAttackAnimation(ScreenWeapon.WeaponState);
+                    }
+                }
+                else
+                    PlayAttackAnimation(ScreenWeapon.WeaponState);
+            }
+            else
+                PlayAttackAnimation(ScreenWeapon.WeaponState);
         }
 
         float currentSpeed = GameManager.Instance.PlayerMotor.Speed;
@@ -849,49 +919,31 @@ public class FPSWeaponClone : MonoBehaviour
         //bool attacking = GameManager.Instance.WeaponManager.ScreenWeapon.IsAttacking();
         bool attacking = animating != null ? true : false;
         bool unsheathed = ScreenWeapon.ShowWeapon;
+        bool mirror = GameManager.Instance.WeaponManager.ScreenWeapon.FlipHorizontal;
 
         if (offset)
         {
-            if (attacking)
+            if (!attacking)
             {
-                if (!offsetted)
-                {
-                    offsetState = ScreenWeapon.WeaponState;
-                    offsetted = true;
-                }
-            }
-            else
-            {
-                if (offsetted)
-                {
-                    float offsetX = 1f;
-
-                    if (offsetState != WeaponStates.Idle)
-                    {
-                        if (offsetState == WeaponStates.StrikeDown || offsetState == WeaponStates.StrikeUp)
-                            offsetX = 0f;
-                        else if (offsetState == WeaponStates.StrikeLeft || offsetState == WeaponStates.StrikeDownLeft)
-                            offsetX = -1f;
-                    }
-
-                    Vector2 newOffset = new Vector2(offsetX, 1f);
-
-                    /*if (inertia && inertiaTransform)
-                        newOffset *= 0.5f;*/
-
-                    offsetCurrent = newOffset;
-
-                    offsetted = false;
-                }
-
                 if (!unsheathed)
                     offsetTarget = Vector2.one * 2;
                 else
                     offsetTarget = Vector2.zero;
+
+                if (GameManager.Instance.WeaponManager.UsingRightHand)
+                {
+                    if (GameManager.Instance.WeaponManager.EquipCountdownRightHand > 0)
+                        offsetTarget = Vector2.one * 2;
+                }
+                else
+                {
+                    if (GameManager.Instance.WeaponManager.EquipCountdownLeftHand > 0)
+                        offsetTarget = Vector2.one * 2;
+                }
             }
 
-            if (ScreenWeapon.FlipHorizontal)
-                offsetTarget *= new Vector2(-1,1);
+            /*if (ScreenWeapon.FlipHorizontal)
+                offsetTarget *= new Vector2(-1,1);*/
 
             offsetCurrent = Vector2.MoveTowards(offsetCurrent, offsetTarget, Time.deltaTime * offsetSpeedLive);
 
@@ -899,7 +951,13 @@ public class FPSWeaponClone : MonoBehaviour
         }
 
         //bob
-        if (bob && !attacking)
+
+        bool canBob = false;
+        if (weaponState == WeaponStates.Idle || (currentWeaponType == WeaponTypes.Bow && (weaponState == WeaponStates.StrikeUp || weaponState == WeaponStates.StrikeDown)))
+            canBob = true;
+
+
+        if (bob && canBob)
         {
             //SHAPE OF MOVE BOB
             float bobYOffset = bobShape;
@@ -939,12 +997,17 @@ public class FPSWeaponClone : MonoBehaviour
             //ADD OFFSET SO SPRITE DOESN'T EXPOSE EDGES WHEN BOBBING
             float screenOffsetX = -1f;
             float screenOffsetY = 1f;
-            //REVERSE OFFSET IF LEFT-HANDED
-            if (ScreenWeapon.FlipHorizontal)
+
+            //IF DOUBLE SCALE TEXTURES ARE BEING USED, DON'T OFFSET
+            if (doubleScale)
             {
-                screenOffsetX *= -1;
-                //screenOffsetY *= -1;
+                screenOffsetX = 0;
+                screenOffsetY = 0;
             }
+
+            //REVERSE OFFSET IF LEFT-HANDED
+            /*if (ScreenWeapon.FlipHorizontal)
+                screenOffsetX *= -1;*/
 
             //GET CURRENT BOB VALUES
             Vector2 bobRaw = new Vector2((screenOffsetX + Mathf.Sin(bobOffset + Time.time * bobXSpeed)) * -bobSize.x, (screenOffsetY - Mathf.Sin(bobOffset + bobYOffset + Time.time * bobYSpeed)) * bobSize.y);
@@ -958,14 +1021,24 @@ public class FPSWeaponClone : MonoBehaviour
         //inertia
         if (inertia)
         {
-            if (!attacking)
+            if (weaponState == WeaponStates.Idle)
             {
                 float mod = 1;
 
+                Vector3 MoveDirectionLocal = GameManager.Instance.PlayerObject.transform.InverseTransformVector(GameManager.Instance.PlayerMotor.MoveDirection);
+
+                float speedX = Mathf.Clamp(MoveDirectionLocal.x / 10,-1,1);
+                float speedY = 0;
+                if (!GameManager.Instance.PlayerMotor.IsGrounded)
+                    speedY = Mathf.Clamp(MoveDirectionLocal.y / 10, -1, 1);
+                float speedZ = Mathf.Clamp(MoveDirectionLocal.z / 10, -1, 1);
+
+                int mirrorDir = mirror ? -1 : 1;
+
                 if (GameManager.Instance.PlayerMouseLook.cursorActive || InputManager.Instance.HasAction(InputManager.Actions.SwingWeapon))
-                    inertiaTarget = new Vector2(-InputManager.Instance.Horizontal * 0.5f * inertiaScale, 0);
+                    inertiaTarget = new Vector2(-speedX * 0.5f * inertiaScale, 0);
                 else
-                    inertiaTarget = new Vector2(-(InputManager.Instance.LookX + InputManager.Instance.Horizontal) * 0.5f * inertiaScale, InputManager.Instance.LookY * inertiaScale);
+                    inertiaTarget = new Vector2(((InputManager.Instance.LookX + speedX)*mirrorDir) * 0.5f * -inertiaScale, (InputManager.Instance.LookY + speedY) * 0.5f * inertiaScale);
 
                 inertiaSpeedMod = Vector2.Distance(inertiaCurrent, inertiaTarget) / inertiaScale;
 
@@ -981,27 +1054,26 @@ public class FPSWeaponClone : MonoBehaviour
                 if (inertiaForwardTarget != Vector2.zero)
                     mod = 3;
 
-                inertiaForwardTarget = new Vector2(InputManager.Instance.Vertical, InputManager.Instance.Vertical) * inertiaForwardScale * speed;
+                inertiaForwardTarget = Vector2.one * speedZ * inertiaForwardScale;
                 inertiaForwardCurrent = Vector2.MoveTowards(inertiaForwardCurrent, inertiaForwardTarget, Time.deltaTime * inertiaForwardSpeed * mod);
 
                 Scale += inertiaForwardCurrent;
-
-                /*if (GameManager.Instance.WeaponManager.ScreenWeapon.FlipHorizontal)
-                    inertiaForwardCurrent *= Vector2.left;*/
-
-                //transforms
-                /*if (inertiaTransform)
-                {
-                    GameManager.Instance.WeaponManager.ScreenWeapon.Scale += Vector2.one;
-                    GameManager.Instance.WeaponManager.ScreenWeapon.Offset += inertiaForwardCurrent * 0.25f;
-                }
-                else*/
-                Offset += inertiaForwardCurrent;
+                Position -= inertiaForwardCurrent * (screenRect.width * 0.25f);
+                //Offset += inertiaForwardCurrent * 0.5f;
             }
+        }
 
+        if (doubleScale)
+        {
             //set center of sprite to corner
-            if (weaponState == WeaponStates.Idle)
+            if (weaponState == WeaponStates.Idle || (currentWeaponType == WeaponTypes.Bow && currentFrame == 0))
+            {
                 Scale += Vector2.one;
+                if (currentWeaponType == WeaponTypes.Werecreature)
+                    Offset -= new Vector2(0.25f, 0);
+                if (mirror)
+                    Offset += new Vector2(0.5f, 0);
+            }
         }
 
         if (Position != Vector2.zero && OnPositionChange != null)
@@ -1068,7 +1140,15 @@ public class FPSWeaponClone : MonoBehaviour
             {
                 curAnimRect = isImported ? new Rect(0, 0, 1, 1) : weaponAtlas.WeaponRects[weaponAtlas.WeaponIndices[weaponAnimRecordIndex].startIndex + currentFrame];
             }
+
             WeaponAnimation anim = weaponAnims[(int)weaponState];
+
+            //if (weaponState == WeaponStates.StrikeDown && (ScreenWeapon.WeaponType == WeaponTypes.Mace || ScreenWeapon.WeaponType != WeaponTypes.Mace_Magic))
+            if (swingAlignmentOverride)
+            {
+                if ((weaponState == WeaponStates.StrikeDown || (weaponState == WeaponStates.StrikeUp && !(currentWeaponType == WeaponTypes.Battleaxe || currentWeaponType == WeaponTypes.Battleaxe_Magic || currentWeaponType == WeaponTypes.Warhammer || currentWeaponType == WeaponTypes.Warhammer_Magic))) && !(currentWeaponType == WeaponTypes.Melee || currentWeaponType == WeaponTypes.Bow || currentWeaponType == WeaponTypes.Dagger || currentWeaponType == WeaponTypes.Dagger_Magic))
+                    anim.Alignment = WeaponAlignment.Center;
+            }
 
             // Get weapon dimensions
             int width = weaponAtlas.WeaponIndices[weaponAnimRecordIndex].width;
@@ -1123,11 +1203,33 @@ public class FPSWeaponClone : MonoBehaviour
 
     private void AlignCenter(WeaponAnimation anim, int width, int height)
     {
-        weaponPosition = new Rect(
-            screenRect.x + screenRect.width / 2f - (width * weaponScaleX) / 2f,
-            screenRect.y + screenRect.height - height * weaponScaleY - weaponOffsetHeight,
-            width * weaponScaleX,
-            height * weaponScaleY);
+        if (swingAlignmentOverride && (weaponState == WeaponStates.StrikeDown || weaponState == WeaponStates.StrikeUp) && !(currentWeaponType == WeaponTypes.Bow || currentWeaponType == WeaponTypes.Melee || currentWeaponType == WeaponTypes.Dagger || currentWeaponType == WeaponTypes.Dagger_Magic || currentWeaponType == WeaponTypes.Warhammer || currentWeaponType == WeaponTypes.Warhammer_Magic))
+        {
+            if (ScreenWeapon.FlipHorizontal)
+            {
+                weaponPosition = new Rect(
+                    screenRect.x + screenRect.width / 2f - (width * weaponScaleX),
+                    screenRect.y + screenRect.height - height * weaponScaleY - weaponOffsetHeight,
+                    width * weaponScaleX,
+                    height * weaponScaleY);
+            }
+            else
+            {
+                weaponPosition = new Rect(
+                    screenRect.x + screenRect.width / 2f,
+                    screenRect.y + screenRect.height - height * weaponScaleY - weaponOffsetHeight,
+                    width * weaponScaleX,
+                    height * weaponScaleY);
+            }
+        }
+        else
+        {
+            weaponPosition = new Rect(
+                screenRect.x + screenRect.width / 2f - (width * weaponScaleX) / 2f,
+                screenRect.y + screenRect.height - height * weaponScaleY - weaponOffsetHeight,
+                width * weaponScaleX,
+                height * weaponScaleY);
+        }
     }
 
     private void AlignRight(WeaponAnimation anim, int width, int height)
@@ -1169,13 +1271,30 @@ public class FPSWeaponClone : MonoBehaviour
         currentMetalType = ScreenWeapon.MetalType;
         animTickTime = GetAnimTickTime();
     }
+
+    const float max = 0.045918f;
+    const float mid = 0.198979f;
+    const float min = 0.352041f;
+
     private float GetAnimTickTime()
     {
+        float tickTime = GameManager.classicUpdateInterval;
         PlayerEntity player = GameManager.Instance.PlayerEntity;
-        if (ScreenWeapon.WeaponType == WeaponTypes.Bow || player == null)
-            return GameManager.classicUpdateInterval;
-        else
-            return FormulaHelper.GetMeleeWeaponAnimTime(player, ScreenWeapon.WeaponType, ScreenWeapon.WeaponHands);
+
+        if (ScreenWeapon.WeaponType != WeaponTypes.Bow && player != null)
+            tickTime = FormulaHelper.GetMeleeWeaponAnimTime(player, ScreenWeapon.WeaponType, ScreenWeapon.WeaponHands);
+
+        //dampen the value somehow
+        float diff = max - mid;
+
+        //at max, it should equal to "mid + (diff/2)"
+        //at mid, it should equal to "mid"
+        //at min, it should equal to "mid - (diff/2)"
+
+        float t = Mathf.InverseLerp(0, 2, tickTime/mid);
+        tickTime = Mathf.Lerp(max, min, t);
+
+        return tickTime;
     }
 
     private WeaponAtlas GetWeaponTextureAtlas(
@@ -1337,5 +1456,30 @@ public class FPSWeaponClone : MonoBehaviour
         rectOut = new Rect(border * ru, border * rv, (sz.Width - border * 2) * ru, (sz.Height - border * 2) * rv);
 
         return texture;
+    }
+
+    bool CheckForRecoveryOverride()
+    {
+        bool hasOverride = false;
+
+        //bare hand
+        if (SpecificWeapon == null)
+        {
+            /*if (weaponState == WeaponStates.StrikeLeft)
+                hasOverride = true;*/
+        }
+        else
+        {
+            WeaponTypes weaponType = GameManager.Instance.ItemHelper.ConvertItemToAPIWeaponType(SpecificWeapon);
+
+            //if (weaponType != WeaponTypes.Dagger && weaponType != WeaponTypes.Dagger_Magic && weaponType != WeaponTypes.Flail && weaponType != WeaponTypes.Flail_Magic)
+            if (weaponType != WeaponTypes.Dagger && weaponType != WeaponTypes.Dagger_Magic)
+            {
+                if (weaponState == WeaponStates.StrikeUp)
+                    hasOverride = true;
+            }
+        }
+
+        return hasOverride;
     }
 }
