@@ -1,6 +1,6 @@
 {
     "ModTitle": "Handheld Torches",
-    "ModVersion": "1.1",
+    "ModVersion": "1.2",
     "ModAuthor": "RedRoryOTheGlen",
     "ContactInfo": "rmufrancisco@gmail.com",
     "DFUnity_Version": "1.1.1",
@@ -44,6 +44,13 @@
         "Assets/Game/Mods/HandheldTorches/Textures/4000_1-1_Emission.PNG",
         "Assets/Game/Mods/HandheldTorches/Textures/4000_2-3_Emission.PNG",
         "Assets/Game/Mods/HandheldTorches/Textures/4000_1-4_Emission.PNG",
-        "Assets/Game/Mods/HandheldTorches/HandheldTorches.dfmod.json"
+        "Assets/Game/Mods/HandheldTorches/HandheldTorches.dfmod.json",
+        "Assets/Game/Mods/HandheldTorches/Textures/4001_1-0.png",
+        "Assets/Game/Mods/HandheldTorches/Textures/4001_1-1.png",
+        "Assets/Game/Mods/HandheldTorches/Textures/4001_1-2.png",
+        "Assets/Game/Mods/HandheldTorches/Textures/4001_1-3.png",
+        "Assets/Game/Mods/HandheldTorches/Scripts/HandheldTorchesProjectile.cs",
+        "Assets/Game/Mods/HandheldTorches/Scripts/HandheldTorchesEnemyLight.cs",
+        "Assets/Game/Mods/HandheldTorches/Scripts/HandheldTorchesEnemyParticleEmitter.cs"
     ]
 }
