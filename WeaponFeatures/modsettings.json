@@ -1,0 +1,316 @@
+{
+    "Version": null,
+    "Sections": [
+        {
+            "Name": "Main",
+            "Description": null,
+            "IsAdvanced": false,
+            "Keys": [
+                {
+                    "Value": "Mouse1",
+                    "Name": "AttackInput",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.TextKey"
+                },
+                {
+                    "Options": [
+                        "Vanilla",
+                        "Hold To Attack",
+                        "Movement",
+                        "Speed"
+                    ],
+                    "Value": 0,
+                    "Name": "MeleeMode",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.MultipleChoiceKey"
+                },
+                {
+                    "Options": [
+                        "Vanilla",
+                        "Draw and Release",
+                        "Type"
+                    ],
+                    "Value": 0,
+                    "Name": "BowMode",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.MultipleChoiceKey"
+                }
+            ],
+            "$version": "v1"
+        },
+        {
+            "Name": "Reach",
+            "Description": null,
+            "IsAdvanced": false,
+            "Keys": [
+                {
+                    "Value": true,
+                    "Name": "Radial",
+                    "Description": "Disregards overlapped targets outside of weapon reach from the player",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.ToggleKey"
+                },
+                {
+                    "Min": 0.0,
+                    "Max": 4.0,
+                    "Value": 1.0,
+                    "Name": "Multiplier",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderFloatKey"
+                }
+            ],
+            "$version": "v1"
+        },
+        {
+            "Name": "Cleave",
+            "Description": null,
+            "IsAdvanced": false,
+            "Keys": [
+                {
+                    "Min": 0.0,
+                    "Max": 2.0,
+                    "Value": 1.0,
+                    "Name": "Interval",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderFloatKey"
+                },
+                {
+                    "Value": true,
+                    "Name": "RequireLineOfSight",
+                    "Description": "Perform a LOS check on the target before applying cleave",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.ToggleKey"
+                },
+                {
+                    "Value": false,
+                    "Name": "ParriesPreventCleave",
+                    "Description": "An enemy that parries the attack stops a cleave from propagating",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.ToggleKey"
+                },
+                {
+                    "Min": 0.0,
+                    "Max": 2.0,
+                    "Value": 1.0,
+                    "Name": "StartingCleaveMultiplier",
+                    "Description": "Modifies the base Cleave value when attacking",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderFloatKey"
+                },
+                {
+                    "Min": 0.0,
+                    "Max": 2.0,
+                    "Value": 1.0,
+                    "Name": "TargetWeightMultiplier",
+                    "Description": "Modifies the amount of Weight a target subtracts from Cleave",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderFloatKey"
+                }
+            ],
+            "$version": "v1"
+        },
+        {
+            "Name": "Variables",
+            "Description": "",
+            "IsAdvanced": true,
+            "Keys": [
+                {
+                    "Value": {
+                        "First": 1.0,
+                        "Second": 100.0
+                    },
+                    "Name": "HandToHand",
+                    "Description": "REACH and CLEAVE",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.TupleFloatKey"
+                },
+                {
+                    "Value": {
+                        "First": 1.0,
+                        "Second": 100.0
+                    },
+                    "Name": "Dagger",
+                    "Description": "REACH and CLEAVE",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.TupleFloatKey"
+                },
+                {
+                    "Value": {
+                        "First": 0.8,
+                        "Second": 150.0
+                    },
+                    "Name": "Tanto",
+                    "Description": "REACH and CLEAVE",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.TupleFloatKey"
+                },
+                {
+                    "Value": {
+                        "First": 1.4,
+                        "Second": 150.0
+                    },
+                    "Name": "Shortsword",
+                    "Description": "REACH and CLEAVE",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.TupleFloatKey"
+                },
+                {
+                    "Value": {
+                        "First": 1.2,
+                        "Second": 200.0
+                    },
+                    "Name": "Wakazashi",
+                    "Description": "REACH and CLEAVE",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.TupleFloatKey"
+                },
+                {
+                    "Value": {
+                        "First": 1.6,
+                        "Second": 400.0
+                    },
+                    "Name": "Broadsword",
+                    "Description": "REACH and CLEAVE",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.TupleFloatKey"
+                },
+                {
+                    "Value": {
+                        "First": 1.6,
+                        "Second": 250.0
+                    },
+                    "Name": "Saber",
+                    "Description": "REACH and CLEAVE",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.TupleFloatKey"
+                },
+                {
+                    "Value": {
+                        "First": 2.0,
+                        "Second": 250.0
+                    },
+                    "Name": "Longsword",
+                    "Description": "REACH and CLEAVE",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.TupleFloatKey"
+                },
+                {
+                    "Value": {
+                        "First": 1.8,
+                        "Second": 300.0
+                    },
+                    "Name": "Katana",
+                    "Description": "REACH and CLEAVE",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.TupleFloatKey"
+                },
+                {
+                    "Value": {
+                        "First": 3.0,
+                        "Second": 500.0
+                    },
+                    "Name": "Claymore",
+                    "Description": "REACH and CLEAVE",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.TupleFloatKey"
+                },
+                {
+                    "Value": {
+                        "First": 2.8,
+                        "Second": 600.0
+                    },
+                    "Name": "Daikatana",
+                    "Description": "REACH and CLEAVE",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.TupleFloatKey"
+                },
+                {
+                    "Value": {
+                        "First": 2.6,
+                        "Second": 250.0
+                    },
+                    "Name": "Staff",
+                    "Description": "REACH and CLEAVE",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.TupleFloatKey"
+                },
+                {
+                    "Value": {
+                        "First": 1.8,
+                        "Second": 250.0
+                    },
+                    "Name": "Mace",
+                    "Description": "REACH and CLEAVE",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.TupleFloatKey"
+                },
+                {
+                    "Value": {
+                        "First": 2.4,
+                        "Second": 250.0
+                    },
+                    "Name": "Flail",
+                    "Description": "REACH and CLEAVE",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.TupleFloatKey"
+                },
+                {
+                    "Value": {
+                        "First": 2.2,
+                        "Second": 500.0
+                    },
+                    "Name": "Warhammer",
+                    "Description": "REACH and CLEAVE",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.TupleFloatKey"
+                },
+                {
+                    "Value": {
+                        "First": 1.8,
+                        "Second": 500.0
+                    },
+                    "Name": "BattleAxe",
+                    "Description": "REACH and CLEAVE",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.TupleFloatKey"
+                },
+                {
+                    "Value": {
+                        "First": 2.6,
+                        "Second": 1000.0
+                    },
+                    "Name": "WarAxe",
+                    "Description": "REACH and CLEAVE",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.TupleFloatKey"
+                },
+                {
+                    "Value": {
+                        "First": 1.4,
+                        "Second": 250.0
+                    },
+                    "Name": "Archer'sAxe",
+                    "Description": "REACH and CLEAVE. Requires Roleplay & Realism - Items",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.TupleFloatKey"
+                },
+                {
+                    "Value": {
+                        "First": 2.2,
+                        "Second": 150.0
+                    },
+                    "Name": "LightFlail",
+                    "Description": "REACH and CLEAVE. Requires Roleplay & Realism - Items",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.TupleFloatKey"
+                }
+            ],
+            "$version": "v1"
+        }
+    ]
+}

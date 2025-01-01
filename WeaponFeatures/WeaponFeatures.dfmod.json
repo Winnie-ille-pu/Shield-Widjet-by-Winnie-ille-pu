@@ -1,0 +1,13 @@
+{
+    "ModTitle": "Tome of Battle",
+    "ModVersion": "1.0",
+    "ModAuthor": "RedRoryOTheGlen",
+    "ContactInfo": "rmufrancisco@gmail.com",
+    "DFUnity_Version": "1.1.1",
+    "ModDescription": "Adds a custom attack input controller and various weapon behaviors.",
+    "GUID": "a166c215-0a5a-4582-8bf3-8be8df80d5e5",
+    "Files": [
+        "Assets/Game/Mods/WeaponFeatures/Scripts/WeaponFeatures.cs",
+        "Assets/Game/Mods/WeaponFeatures/modsettings.json"
+    ]
+}
