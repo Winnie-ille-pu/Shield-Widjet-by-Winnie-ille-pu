@@ -144,6 +144,13 @@
             "$version": "v1"
         },
         {
+            "Name": "-",
+            "Description": null,
+            "IsAdvanced": false,
+            "Keys": [],
+            "$version": "v1"
+        },
+        {
             "Name": "Bob",
             "Description": "Offsets the sprite during movement",
             "IsAdvanced": false,
@@ -253,6 +260,13 @@
             "$version": "v1"
         },
         {
+            "Name": ".",
+            "Description": ".",
+            "IsAdvanced": false,
+            "Keys": [],
+            "$version": "v1"
+        },
+        {
             "Name": "Inertia",
             "Description": "Delays the sprite on the screen when the view is manipulated. Requires double-scaled weapon textures.",
             "IsAdvanced": true,
@@ -297,18 +311,87 @@
             "$version": "v1"
         },
         {
+            "Name": "_",
+            "Description": "",
+            "IsAdvanced": false,
+            "Keys": [],
+            "$version": "v1"
+        },
+        {
             "Name": "Recoil",
             "Description": "Changes the animation depending on the attack's target and result. Requires Vanilla Combat Event Handler.",
             "IsAdvanced": true,
             "Keys": [
                 {
+                    "Options": [
+                        "Hits Only",
+                        "Hits and Parries",
+                        "Parries Only",
+                        "Parries and Misses",
+                        "Misses Only",
+                        "All Attacks"
+                    ],
+                    "Value": 0,
+                    "Name": "Condition",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.MultipleChoiceKey"
+                },
+                {
                     "Min": 0,
                     "Max": 100,
                     "Value": 100,
                     "Name": "Chance",
-                    "Description": null,
+                    "Description": "% chance of recoil happening when condition is met",
                     "$version": "v1",
                     "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderIntKey"
+                },
+                {
+                    "Value": true,
+                    "Name": "PlayEntityMissEffects",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.ToggleKey"
+                },
+                {
+                    "Value": true,
+                    "Name": "DetectEnvironment",
+                    "Description": "",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.ToggleKey"
+                },
+                {
+                    "Value": true,
+                    "Name": "PlayEnvironmentMissEffects",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.ToggleKey"
+                },
+                {
+                    "Options": [
+                        "Target",
+                        "Crosshair"
+                    ],
+                    "Value": 0,
+                    "Name": "MissEffectPlacement",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.MultipleChoiceKey"
+                }
+            ],
+            "$version": "v1"
+        },
+        {
+            "Name": "Miscellaneous",
+            "Description": null,
+            "IsAdvanced": false,
+            "Keys": [
+                {
+                    "Value": false,
+                    "Name": "MirrorBows",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.ToggleKey"
                 }
             ],
             "$version": "v1"
