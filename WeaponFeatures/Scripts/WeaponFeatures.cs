@@ -3,12 +3,15 @@ using System.Linq;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using DaggerfallConnect.Arena2;
 using DaggerfallWorkshop;
 using DaggerfallWorkshop.Game;
 using DaggerfallWorkshop.Game.Entity;
 using DaggerfallWorkshop.Game.Items;
 using DaggerfallWorkshop.Game.Formulas;
 using DaggerfallWorkshop.Game.MagicAndEffects;
+using DaggerfallWorkshop.Game.Serialization;
+using DaggerfallWorkshop.Game.Utility;
 using DaggerfallWorkshop.Game.Utility.ModSupport;
 using DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings;
 using DaggerfallConnect;
@@ -25,10 +28,14 @@ public class WeaponFeatures : MonoBehaviour
         WeaponFeatures wf = go.AddComponent<WeaponFeatures>();
     }
 
+    public static WeaponFeatures Instance;
+
     //settings
     KeyCode attackKeyCode = KeyCode.Mouse1;
     int meleeMode;    //0 = gesture, 1 = hold, 2 = movement, 3 = speed
     int bowMode; //0 = vanilla, 1 = hold and release, 2 = typed
+    float meleeModeVanillaMouseDampenMod = 1.0f;
+    bool safeguard;
     float cleaveInterval;
     bool cleaveRequireLOS;
     bool cleaveParries;
@@ -36,6 +43,12 @@ public class WeaponFeatures : MonoBehaviour
     float cleaveWeightMultiplier = 1;
     float reachMultiplier = 1;
     bool reachRadial;
+    bool feedbackPause;
+    float feedbackPauseScale = 1;
+    bool feedbackDodge;
+    float feedbackDodgeScale = 1;
+    bool feedbackHurt;
+    float feedbackHurtScale = 1;
 
     //configuration
     Vector2 statMelee;
@@ -62,18 +75,18 @@ public class WeaponFeatures : MonoBehaviour
     CharacterController playerController;
     PlayerEntity playerEntity;
     PlayerMotor playerMotor;
-    PlayerSpeedChanger speedChanger;
-    PlayerHeightChanger heightChanger;
     WeaponManager weaponManager;
     FPSWeapon ScreenWeapon;
 
     bool isAttacking;
     bool hasAttacked;
 
+    IEnumerator cleaving;
+
     DaggerfallEntity attackTarget;
     int attackDamage;
 
-    LayerMask layerMask;
+    public LayerMask layerMask;
 
     int swingCount = 0;
     float swingTime = 0.2f;
@@ -95,6 +108,8 @@ public class WeaponFeatures : MonoBehaviour
 
     float drawTime = 10;
     float drawTimer;
+
+    IEnumerator conflict;
 
     //Vanilla attack control stuff
     private Gesture _gesture;
@@ -188,14 +203,15 @@ public class WeaponFeatures : MonoBehaviour
 
     void Awake()
     {
+        Instance = this;
+
         layerMask = ~(1 << LayerMask.NameToLayer("Player"));
+        layerMask = layerMask & ~(1 << LayerMask.NameToLayer("Ignore Raycast"));
 
         playerCamera = GameManager.Instance.MainCamera;
         playerController = GameManager.Instance.PlayerController;
         playerEntity = GameManager.Instance.PlayerEntity;
         playerMotor = GameManager.Instance.PlayerMotor;
-        speedChanger = GameManager.Instance.SpeedChanger;
-        heightChanger = GameManager.Instance.PlayerObject.GetComponent<PlayerHeightChanger>();
         weaponManager = GameManager.Instance.WeaponManager;
         ScreenWeapon = GameManager.Instance.WeaponManager.ScreenWeapon;
 
@@ -207,33 +223,45 @@ public class WeaponFeatures : MonoBehaviour
 
         ModCompatibilityChecking();
 
+        SaveLoadManager.OnLoad += OnLoad;
+        StartGameBehaviour.OnNewGame += OnNewGame;
+
         mod.MessageReceiver = MessageReceiver;
         mod.IsReady = true;
     }
 
     private void LoadSettings(ModSettings settings, ModSettingsChange change)
     {
-        if (change.HasChanged("Main"))
+        if (change.HasChanged("Controls"))
         {
-            attackKeyCode = SetKeyFromText(settings.GetString("Main", "AttackInput"));
-            meleeMode = settings.GetValue<int>("Main", "MeleeMode");
-            bowMode = settings.GetValue<int>("Main", "BowMode");
+            attackKeyCode = SetKeyFromText(settings.GetString("Controls", "AttackInput"));
+            meleeMode = settings.GetValue<int>("Controls", "MeleeMode");
+            bowMode = settings.GetValue<int>("Controls", "BowMode");
             if (bowMode == 0)
                 DaggerfallUnity.Settings.BowDrawback = false;
             else
                 DaggerfallUnity.Settings.BowDrawback = true;
+            meleeModeVanillaMouseDampenMod = 1-settings.GetValue<float>("Controls", "VanillaMeleeViewDampenStrength");
         }
-        if (change.HasChanged("Cleave"))
+        if (change.HasChanged("HitDetection"))
         {
-            cleaveInterval = settings.GetValue<float>("Cleave", "Interval");
-            cleaveRequireLOS = settings.GetValue<bool>("Cleave", "RequireLineOfSight");
-            cleaveValueMultiplier = settings.GetValue<float>("Cleave", "StartingCleaveMultiplier");
-            cleaveWeightMultiplier = settings.GetValue<float>("Cleave", "TargetWeightMultiplier");
+            safeguard = settings.GetValue<bool>("HitDetection", "Safeguard");
+            reachRadial = settings.GetValue<bool>("HitDetection", "RadialDistance");
+            reachMultiplier = settings.GetValue<float>("HitDetection", "ReachMultiplier");
+            cleaveParries = settings.GetValue<bool>("HitDetection", "ParriesPreventCleave");
+            cleaveInterval = settings.GetValue<float>("HitDetection", "CleaveInterval");
+            cleaveRequireLOS = settings.GetValue<bool>("HitDetection", "RequireLineOfSight");
+            cleaveValueMultiplier = settings.GetValue<float>("HitDetection", "StartingCleaveMultiplier");
+            cleaveWeightMultiplier = settings.GetValue<float>("HitDetection", "TargetWeightMultiplier");
         }
-        if (change.HasChanged("Reach"))
+        if (change.HasChanged("Feedback"))
         {
-            reachRadial = settings.GetValue<bool>("Reach", "Radial");
-            reachMultiplier = settings.GetValue<float>("Reach", "Multiplier");
+            feedbackPause = settings.GetValue<bool>("Feedback", "PauseEnemyParries");
+            feedbackPauseScale = settings.GetValue<float>("Feedback", "PauseDurationScale");
+            feedbackDodge = settings.GetValue<bool>("Feedback", "VisibleEnemyDodges");
+            feedbackDodgeScale = settings.GetValue<float>("Feedback", "DodgeDistanceScale");
+            feedbackHurt = settings.GetValue<bool>("Feedback", "SavingThrowKnockback");
+            feedbackHurtScale = settings.GetValue<float>("Feedback", "KnockbackScale");
         }
         if (change.HasChanged("Variables"))
         {
@@ -267,6 +295,10 @@ public class WeaponFeatures : MonoBehaviour
                 callBack?.Invoke("getSwingKeyCode", attackKeyCode);
                 break;
 
+            case "getWeaponReach":
+                callBack?.Invoke("getWeaponReach", GetWeaponReach());
+                break;
+
             default:
                 Debug.LogErrorFormat("{0}: unknown message received ({1}).", this, message);
                 break;
@@ -294,6 +326,15 @@ public class WeaponFeatures : MonoBehaviour
                 reloadTimer += Time.deltaTime;
             else
                 reloaded = true;
+        }
+
+        //Dampen view speed when swinging a weapon
+        if (meleeMode == 0 && meleeModeVanillaMouseDampenMod < 1)
+        {
+            if (ScreenWeapon.WeaponType != WeaponTypes.Bow && InputManager.Instance.GetKey(attackKeyCode))
+                GameManager.Instance.PlayerMouseLook.sensitivityScale = DaggerfallUnity.Settings.MouseLookSensitivity * meleeModeVanillaMouseDampenMod;
+            else
+                GameManager.Instance.PlayerMouseLook.sensitivityScale = DaggerfallUnity.Settings.MouseLookSensitivity;
         }
 
         if (ScreenWeapon.IsAttacking())
@@ -367,104 +408,112 @@ public class WeaponFeatures : MonoBehaviour
                 else
                     swingCount = 0;
 
-                if (InputManager.Instance.GetKey(attackKeyCode))
+                if (CanAttack())
                 {
                     WeaponManager.MouseDirections swingDirection = WeaponManager.MouseDirections.None;
 
-                    if (ScreenWeapon.WeaponType != WeaponTypes.Bow)
+                    if (InputManager.Instance.GetKey(attackKeyCode))
                     {
-                        //method to pick attack type here
-                        if (meleeMode == 3)
+                        if (ScreenWeapon.WeaponType != WeaponTypes.Bow)
                         {
-                            //Speed-based
-                            if (!playerMotor.IsGrounded && (new Vector2(playerMotor.MoveDirection.x, playerMotor.MoveDirection.z).magnitude <= (GameManager.Instance.SpeedChanger.GetBaseSpeed() * 0.6f)))
+                            //method to pick attack type here
+                            if (meleeMode == 3)
                             {
-                                //do a chop if in the air while moving at half-speed or less
-                                swingDirection = WeaponManager.MouseDirections.Down;
-                            }
-                            else if (!playerMotor.IsGrounded)
-                            {
-                                //do a thrust if in the air while moving normally
-                                swingDirection = WeaponManager.MouseDirections.Up;
-                            }
-                            else if (playerMotor.IsGrounded && playerMotor.IsMovingLessThanHalfSpeed)
-                            {
-                                //do alternating horizontal swings while moving at half-speed or less
-                                swingDirection = WeaponManager.MouseDirections.Left;
-
-                                if (swingCount % 2 != 0)
-                                    swingDirection = WeaponManager.MouseDirections.Right;
-                            }
-                            else if (playerMotor.IsGrounded)
-                            {
-                                //do alternating diagonal swings if moving normally
-                                swingDirection = WeaponManager.MouseDirections.DownLeft;
-
-                                if (swingCount % 2 != 0)
-                                    swingDirection = WeaponManager.MouseDirections.DownRight;
-                            }
-                        }
-                        else if (meleeMode == 2)
-                        {
-                            /*//Movement-based
-                            if (Mathf.Abs(InputManager.Instance.Horizontal) > 0)
-                            {
-                                //do alternating horizontal swings
-                                swingDirection = WeaponManager.MouseDirections.Left;
-
-                                if (swingCount % 2 != 0)
-                                    swingDirection = WeaponManager.MouseDirections.Right;
-                            }
-                            else if (InputManager.Instance.Vertical > 0)
-                            {
-                                swingDirection = WeaponManager.MouseDirections.Up;
-                            }
-                            else if (InputManager.Instance.Vertical < 0)
-                            {
-                                swingDirection = WeaponManager.MouseDirections.Down;
-                            }
-                            else
-                            {
-                                //do alternating diagonal swings
-                                swingDirection = WeaponManager.MouseDirections.DownLeft;
-
-                                if (swingCount % 2 != 0)
-                                    swingDirection = WeaponManager.MouseDirections.DownRight;
-                            }*/
-
-                            //Morrowind
-                            if (Mathf.Abs(InputManager.Instance.Horizontal) > 0 && Mathf.Abs(InputManager.Instance.Vertical) == 0)
-                            {
-                                //do alternating horizontal swings if strafing
-                                swingDirection = WeaponManager.MouseDirections.Left;
-
-                                if (InputManager.Instance.Horizontal < 0)
-                                    swingDirection = WeaponManager.MouseDirections.Right;
-
-                                if (swingCount % 2 != 0)
+                                //Speed-based
+                                if (InputManager.Instance.HasAction(InputManager.Actions.Run) || GameManager.Instance.SpeedChanger.ToggleRun)
                                 {
-                                    if (swingDirection == WeaponManager.MouseDirections.Left)
-                                        swingDirection = WeaponManager.MouseDirections.Right;
+                                    //if RUN is held down
+                                    if (playerMotor.IsMovingLessThanHalfSpeed)
+                                    {
+                                        //do a chop while moving at half-speed or less
+                                        swingDirection = WeaponManager.MouseDirections.Down;
+                                    }
                                     else
+                                    {
+                                        //do a thrust if moving normally
+                                        swingDirection = WeaponManager.MouseDirections.Up;
+                                    }
+                                }
+                                else
+                                {
+                                    if (playerMotor.IsMovingLessThanHalfSpeed)
+                                    {
+                                        //do alternating horizontal swings while moving at half-speed or less
                                         swingDirection = WeaponManager.MouseDirections.Left;
+
+                                        if (swingCount % 2 != 0)
+                                            swingDirection = WeaponManager.MouseDirections.Right;
+                                    }
+                                    else
+                                    {
+                                        //do alternating diagonal swings if moving normally
+                                        swingDirection = WeaponManager.MouseDirections.DownLeft;
+
+                                        if (swingCount % 2 != 0)
+                                            swingDirection = WeaponManager.MouseDirections.DownRight;
+                                    }
                                 }
                             }
-                            else if (InputManager.Instance.Vertical > 0 && Mathf.Abs(InputManager.Instance.Horizontal) == 0)
+                            else if (meleeMode == 2)
                             {
-                                //do a thrust if moving forward
-                                swingDirection = WeaponManager.MouseDirections.Up;
+                                /*//Movement-based
+                                if (Mathf.Abs(InputManager.Instance.Horizontal) > 0)
+                                {
+                                    //do alternating horizontal swings
+                                    swingDirection = WeaponManager.MouseDirections.Left;
+
+                                    if (swingCount % 2 != 0)
+                                        swingDirection = WeaponManager.MouseDirections.Right;
+                                }
+                                else if (InputManager.Instance.Vertical > 0)
+                                {
+                                    swingDirection = WeaponManager.MouseDirections.Up;
+                                }
+                                else if (InputManager.Instance.Vertical < 0)
+                                {
+                                    swingDirection = WeaponManager.MouseDirections.Down;
+                                }
+                                else
+                                {
+                                    //do alternating diagonal swings
+                                    swingDirection = WeaponManager.MouseDirections.DownLeft;
+
+                                    if (swingCount % 2 != 0)
+                                        swingDirection = WeaponManager.MouseDirections.DownRight;
+                                }*/
+
+                                //Morrowind
+                                if (Mathf.Abs(InputManager.Instance.Horizontal) > 0 && Mathf.Abs(InputManager.Instance.Vertical) == 0)
+                                {
+                                    //do alternating horizontal swings if strafing
+                                    swingDirection = WeaponManager.MouseDirections.Left;
+
+                                    if (InputManager.Instance.Horizontal < 0)
+                                        swingDirection = WeaponManager.MouseDirections.Right;
+
+                                    if (swingCount % 2 != 0)
+                                    {
+                                        if (swingDirection == WeaponManager.MouseDirections.Left)
+                                            swingDirection = WeaponManager.MouseDirections.Right;
+                                        else
+                                            swingDirection = WeaponManager.MouseDirections.Left;
+                                    }
+                                }
+                                else if (InputManager.Instance.Vertical > 0 && Mathf.Abs(InputManager.Instance.Horizontal) == 0)
+                                {
+                                    //do a thrust if moving forward
+                                    swingDirection = WeaponManager.MouseDirections.Up;
+                                }
+                                else
+                                {
+                                    //do a chop
+                                    swingDirection = WeaponManager.MouseDirections.Down;
+                                }
                             }
-                            else
+                            else if (meleeMode == 1)
                             {
-                                //do a chop
-                                swingDirection = WeaponManager.MouseDirections.Down;
-                            }
-                        }
-                        else if (meleeMode == 1)
-                        {
-                            //Hold to attack
-                            if (InputManager.Instance.GetKey(attackKeyCode))
-                            {
+                                //Hold to attack
+
                                 //random swing direction
                                 //swingDirection = (WeaponManager.MouseDirections)UnityEngine.Random.Range((int)WeaponManager.MouseDirections.UpRight, (int)WeaponManager.MouseDirections.DownRight + 1);
 
@@ -478,40 +527,64 @@ public class WeaponFeatures : MonoBehaviour
                                 }
                                 swingDirection = (WeaponManager.MouseDirections)value;
                             }
+                            else
+                            {
+                                //Drag to attack
+                                if (meleeModeVanillaMouseDampenMod < 1)
+                                    GameManager.Instance.PlayerMouseLook.sensitivityScale = DaggerfallUnity.Settings.MouseLookSensitivity * meleeModeVanillaMouseDampenMod;
+
+                                swingDirection = TrackMouseAttack();
+                            }
+
+                            swingCount++;
                         }
                         else
                         {
-                            //Drag to attack
-                            if (InputManager.Instance.GetKey(attackKeyCode))
-                                swingDirection = TrackMouseAttack();
-                            else
-                                _gesture.Clear();
+                            //do bow stuff here
+                            if (reloaded)
+                            {
+                                if (DaggerfallUnity.Settings.BowDrawback)
+                                {
+                                    swingDirection = WeaponManager.MouseDirections.Up;
+                                    drawTimer = 0;
+                                }
+                                else
+                                {
+                                    swingDirection = WeaponManager.MouseDirections.Down;
+                                }
+                            }
                         }
-
-                        swingCount++;
                     }
                     else
                     {
-                        //do bow stuff here
-                        if (reloaded)
-                        {
-                            if (DaggerfallUnity.Settings.BowDrawback)
-                            {
-                                swingDirection = WeaponManager.MouseDirections.Up;
-                                drawTimer = 0;
-                            }
-                            else
-                            {
-                                swingDirection = WeaponManager.MouseDirections.Down;
-                            }
-                        }
+                        if (meleeMode == 0)
+                            _gesture.Clear();
                     }
 
                     if (swingDirection != WeaponManager.MouseDirections.None)
                         ScreenWeapon.OnAttackDirection(swingDirection);
                 }
+                else
+                {
+                    if (meleeMode == 0)
+                        _gesture.Clear();
+                }
             }
         }
+    }
+
+    bool CanAttack()
+    {
+        if (GameManager.IsGamePaused ||
+            GameManager.Instance.PlayerEntity.IsParalyzed ||
+            GameManager.Instance.ClimbingMotor.IsClimbing ||
+            GameManager.Instance.PlayerEffectManager.HasReadySpell ||
+            GameManager.Instance.PlayerSpellCasting.IsPlayingAnim ||
+            (GameManager.Instance.PlayerMouseLook.cursorActive && DaggerfallUI.Instance.DaggerfallHUD != null && DaggerfallUI.Instance.DaggerfallHUD.LargeHUD.ActiveMouseOverLargeHUD)
+            )
+            return false;
+
+        return true;
     }
 
     void SpawnMissile()
@@ -536,30 +609,171 @@ public class WeaponFeatures : MonoBehaviour
             reloadTime = FormulaHelper.GetBowCooldownTime(playerEntity) * reloadSizeMod;
             reloadTimer = 0;
             reloaded = false;
+
+            //Tally weapon skill when firing a missile
+            playerEntity.TallySkill(ScreenWeapon.SpecificWeapon.GetWeaponSkillID(), 1);
+            playerEntity.TallySkill(DFCareer.Skills.CriticalStrike, 1);
         }
     }
 
     private void ModCompatibilityChecking()
     {
-        /*//listen to Combat Event Handler for attacks
+        //listen to Combat Event Handler for attacks
         Mod ceh = ModManager.Instance.GetModFromGUID("fb086c76-38e7-4d83-91dc-f29e6f1bb17e");
         if (ceh != null)
-            ModManager.Instance.SendModMessage(ceh.Title, "onAttackDamageCalculated", (Action<DaggerfallEntity, DaggerfallEntity, DaggerfallUnityItem, int, int>)OnAttackDamageCalculated);*/
+        {
+            ModManager.Instance.SendModMessage(ceh.Title, "onAttackDamageCalculated", (Action<DaggerfallEntity, DaggerfallEntity, DaggerfallUnityItem, int, int>)OnAttackDamageCalculated);
+            ModManager.Instance.SendModMessage(ceh.Title, "onSavingThrow", (Action<DFCareer.Elements, DFCareer.EffectFlags, DaggerfallEntity, int>)OnSavingThrow);
+        }
     }
 
     public void OnAttackDamageCalculated(DaggerfallEntity attacker, DaggerfallEntity target, DaggerfallUnityItem weapon, int bodyPart, int damage)
     {
+
         if (attacker == playerEntity)
         {
-            if (GameManager.Instance.WeaponManager.ScreenWeapon.WeaponType != WeaponTypes.Bow)
+            if (cleaveParries && damage < 1)
             {
-                if (attackTarget == null)
+                //stop cleave if missed target can parry
+                if (GameManager.Instance.WeaponManager.ScreenWeapon.WeaponType != WeaponTypes.Bow)
                 {
-                    attackTarget = target;
-                    attackDamage = damage;
+                    EnemyEntity enemy = target as EnemyEntity;
+                    if (enemy.MobileEnemy.ParrySounds && cleaving != null)
+                        AbortCleave();
                 }
             }
         }
+
+        if (target != playerEntity)
+        {
+            EnemyEntity enemy = target as EnemyEntity;
+            if (damage < 1)
+            {
+                if (feedbackDodge && !enemy.MobileEnemy.ParrySounds)
+                {
+                    //make the target dodge
+                    DodgeEnemy(attacker, target);
+                }
+                if (feedbackPause && enemy.MobileEnemy.ParrySounds)
+                {
+                    //make the target pause
+                    PauseEnemy(attacker, target);
+                }
+            }
+        }
+    }
+
+    public void OnSavingThrow(DFCareer.Elements elementType, DFCareer.EffectFlags effectFlags, DaggerfallEntity target, int result)
+    {
+        if (target != GameManager.Instance.PlayerEntity)
+        {
+            if (feedbackHurt && result > 0)
+            {
+                //knockback the target
+                HurtEnemy(target);
+            }
+        }
+    }
+
+    void DodgeEnemy(DaggerfallEntity attacker, DaggerfallEntity target)
+    {
+        EnemyEntity enemy = target as EnemyEntity;
+
+        if (enemy == null)
+            return;
+
+        //set knockback
+        EnemyMotor enemyMotor = target.EntityBehaviour.GetComponent<EnemyMotor>();
+
+        Vector3 directionRight = Quaternion.Euler(0, 90f, 0) * attacker.EntityBehaviour.transform.forward;
+        Vector3 direction = (target.EntityBehaviour.transform.position - attacker.EntityBehaviour.transform.position).normalized;
+        direction = new Vector3(direction.x, 0, direction.z);
+
+        float dot = Vector3.Dot(directionRight.normalized, direction.normalized);
+
+        //check if attacker is player
+        if (attacker == GameManager.Instance.PlayerEntity)
+        {
+            WeaponStates weaponState = GameManager.Instance.WeaponManager.ScreenWeapon.WeaponState;
+
+            if (weaponState == WeaponStates.StrikeDown || weaponState == WeaponStates.StrikeUp)
+            {
+                //if attack is a chop or thrust
+                direction = Quaternion.Euler(0, Mathf.Sign(dot) * 90f, 0) * direction;
+            }
+            else if (weaponState == WeaponStates.StrikeDownLeft || weaponState == WeaponStates.StrikeDownRight)
+            {
+                //if attack is a diagonal
+                direction = Quaternion.Euler(0, Mathf.Sign(dot) * 67.5f, 0) * direction;
+            }
+            else
+            {
+                //if attack is a horizontal
+                direction = Quaternion.Euler(0, Mathf.Sign(dot) * 45f, 0) * direction;
+            }
+        }
+        else
+        {
+            direction = Quaternion.Euler(0, Mathf.Sign(dot) * 67.5f, 0) * direction;
+        }
+
+        enemyMotor.KnockbackDirection = direction.normalized * (10 * feedbackDodgeScale);
+        enemyMotor.KnockbackSpeed = 1.25f;
+    }
+
+    void PauseEnemy(DaggerfallEntity attacker, DaggerfallEntity target)
+    {
+        StartCoroutine(PauseEnemyCoroutine(target, 1 * feedbackPauseScale));
+    }
+
+    IEnumerator PauseEnemyCoroutine(DaggerfallEntity target, float time = 1)
+    {
+        MobileUnit mobile = target.EntityBehaviour.GetComponentInChildren<MobileUnit>();
+
+        if (mobile.EnemyState == MobileStates.Move || mobile.EnemyState == MobileStates.Idle)
+        {
+            EnemySenses senses = target.EntityBehaviour.GetComponent<EnemySenses>();
+
+            Vector3 pos = target.EntityBehaviour.transform.position;
+
+            float currentTime = 0;
+            while (currentTime < time)
+            {
+                if (mobile.IsPlayingOneShot())
+                    break;
+
+                yield return new WaitForEndOfFrame();
+
+                if (mobile.EnemyState == MobileStates.Move)
+                {
+                    mobile.ChangeEnemyState(MobileStates.Idle);
+                    target.EntityBehaviour.transform.position = pos;
+                }
+
+                currentTime += Time.deltaTime;
+            }
+        }
+        else
+            yield return new WaitForEndOfFrame();
+    }
+
+    void HurtEnemy(DaggerfallEntity target)
+    {
+        EnemyEntity enemy = target as EnemyEntity;
+
+        if (enemy == null)
+            return;
+
+        //set knockback
+        EnemyMotor enemyMotor = target.EntityBehaviour.GetComponent<EnemyMotor>();
+
+        Vector3 direction = -target.EntityBehaviour.transform.forward;
+        direction = new Vector3(direction.x, 0, direction.z);
+
+        float sign = UnityEngine.Random.Range(0, 2) * 2 - 1;
+
+        enemyMotor.KnockbackSpeed = 125f * feedbackHurtScale;
+        enemyMotor.KnockbackDirection = direction.normalized * 0.1f;
     }
 
     IEnumerator DoCleaveOnNextFrame()
@@ -582,6 +796,13 @@ public class WeaponFeatures : MonoBehaviour
             //increase the reach by 50% if kicking
             if (ScreenWeapon.WeaponState == WeaponStates.StrikeLeft || ScreenWeapon.WeaponState == WeaponStates.StrikeDown || ScreenWeapon.WeaponState == WeaponStates.StrikeUp)
                 reach *= 1.5f;
+
+            return reach * reachMultiplier;
+        }
+
+        if (ScreenWeapon.WeaponType == WeaponTypes.Werecreature)
+        {
+            reach = statMelee.x * 1.5f;
 
             return reach * reachMultiplier;
         }
@@ -640,6 +861,13 @@ public class WeaponFeatures : MonoBehaviour
             //increase the cleave by 100% if kicking
             if (ScreenWeapon.WeaponState == WeaponStates.StrikeLeft || ScreenWeapon.WeaponState == WeaponStates.StrikeDown || ScreenWeapon.WeaponState == WeaponStates.StrikeUp)
                 cleave = Mathf.RoundToInt(cleave * 2f);
+
+            return Mathf.RoundToInt(cleave * cleaveValueMultiplier);
+        }
+
+        if (ScreenWeapon.WeaponType == WeaponTypes.Werecreature)
+        {
+            cleave = (int)statMelee.y * 2;
 
             return Mathf.RoundToInt(cleave * cleaveValueMultiplier);
         }
@@ -757,9 +985,20 @@ public class WeaponFeatures : MonoBehaviour
             {
 
                 DaggerfallEntityBehaviour behaviour = collider.GetComponent<DaggerfallEntityBehaviour>();
+                EnemyMotor motor = collider.GetComponent<EnemyMotor>();
                 MobilePersonNPC mobileNpc = collider.GetComponent<MobilePersonNPC>();
                 if ((behaviour != null && behaviour.Entity != attackTarget) || mobileNpc != null)
                 {
+                    if (safeguard)
+                    {
+                        if ((behaviour != null && behaviour.Entity.Team == MobileTeams.PlayerAlly) || (motor != null && !motor.IsHostile) || mobileNpc != null)
+                        {
+                            float angleDistance = Vector3.Angle(eye.forward, collider.transform.position - eye.transform.position);
+                            if (angleDistance > GameManager.Instance.MainCamera.fieldOfView * 0.25f)
+                                continue;
+                        }
+                    }
+
                     //add a radial check
                     if (reachRadial && Vector3.Distance(eyeOrigin, collider.ClosestPoint(eyeOrigin)) > z)
                         continue;
@@ -769,19 +1008,19 @@ public class WeaponFeatures : MonoBehaviour
             }
         }
 
+        // Fire ray along player facing using weapon range
+        RaycastHit hit;
+        Ray ray = new Ray(GetEyePos, eye.forward);
+        if (Physics.SphereCast(ray, 0.25f, out hit, weaponReach, layerMask))
+        {
+            if (weaponManager.WeaponEnvDamage(ScreenWeapon.SpecificWeapon, hit))
+            {
+
+            }
+        }
+
         if (transforms.Count < 1)
         {
-            //no entities to hit, do environment check
-            // Fire ray along player facing using weapon range
-            RaycastHit hit;
-            Ray ray = new Ray(GetEyePos, eye.forward);
-            if (Physics.SphereCast(ray, 0.25f, out hit, weaponReach, layerMask))
-            {
-                if (weaponManager.WeaponEnvDamage(ScreenWeapon.SpecificWeapon, hit))
-                {
-
-                }
-            }
             return;
         }
 
@@ -802,127 +1041,10 @@ public class WeaponFeatures : MonoBehaviour
         //sort entities by their distance to the swing origin
         transforms = SortByDistanceToPoint(transforms, origin);
 
-        int cleaves = 0;
-        int hits = 0;
-
-        if (cleaveInterval > 0)
-        {
-            StartCoroutine(ApplyCleaveInterval(transforms, cleaveValue, z, GameManager.classicUpdateInterval*cleaveInterval));
-        }
-        else
-        {
-            foreach (Transform target in transforms)
-            {
-                //if cleave is out, stop cleaving
-                if (cleaveValue < 1)
-                    break;
-
-                MobilePersonNPC mobileNpc = target.GetComponent<MobilePersonNPC>();
-                if (mobileNpc == null)
-                {
-                    if (cleaveRequireLOS)
-                    {
-                        //check if LOS is obstructed
-                        Vector3 rayPos = GetEyePos;
-                        Vector3 rayDir = target.position - rayPos;
-                        Ray ray = new Ray(rayPos, rayDir);
-                        RaycastHit hit = new RaycastHit();
-                        if (Physics.Raycast(ray, out hit, 10, layerMask, QueryTriggerInteraction.Ignore))
-                        {
-                            if (hit.collider.transform != target)
-                            {
-                                //Target is obstructed by something
-                                continue;
-                            }
-                            else
-                            {
-                                cleaves++;
-                                DaggerfallEntityBehaviour behaviour = target.GetComponent<DaggerfallEntityBehaviour>();
-                                if (weaponManager.WeaponDamage(ScreenWeapon.SpecificWeapon, false, false, hit.transform, hit.point, ray.direction))
-                                {
-                                    hits++;
-                                    if (behaviour != null)
-                                    {
-                                        EnemyEntity enemy = behaviour.Entity as EnemyEntity;
-                                        if (enemy != null)
-                                        {
-                                            int weight = Mathf.RoundToInt(enemy.GetWeightInClassicUnits() * cleaveWeightMultiplier);
-                                            cleaveValue -= weight;
-                                        }
-                                    }
-                                }
-                                else
-                                {
-                                    if (cleaveParries)
-                                    {
-                                        if (behaviour != null)
-                                        {
-                                            EnemyEntity enemy = behaviour.Entity as EnemyEntity;
-                                            if (enemy != null)
-                                            {
-                                                if (enemy.MobileEnemy.ParrySounds)
-                                                    cleaveValue = 0;
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    else
-                    {
-                        cleaves++;
-                        DaggerfallEntityBehaviour behaviour = target.GetComponent<DaggerfallEntityBehaviour>();
-                        if (weaponManager.WeaponDamage(ScreenWeapon.SpecificWeapon, false, false, target, target.position, target.position - body.position))
-                        {
-                            hits++;
-                            if (behaviour != null)
-                            {
-                                EnemyEntity enemy = behaviour.Entity as EnemyEntity;
-                                if (enemy != null)
-                                {
-                                    int weight = Mathf.RoundToInt(enemy.GetWeightInClassicUnits() * cleaveWeightMultiplier);
-                                    cleaveValue -= weight;
-                                }
-                            }
-                        }
-                        else
-                        {
-                            if (cleaveParries)
-                            {
-                                if (behaviour != null)
-                                {
-                                    EnemyEntity enemy = behaviour.Entity as EnemyEntity;
-                                    if (enemy != null)
-                                    {
-                                        if (enemy.MobileEnemy.ParrySounds)
-                                            cleaveValue = 0;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                else
-                {
-                    //Don't LOS check MobileNPCs
-                    weaponManager.WeaponDamage(ScreenWeapon.SpecificWeapon, false, false, target, target.position, target.position - body.position);
-                    SoundClips soundClip = DaggerfallEntity.GetRaceGenderPainSound(mobileNpc.Race, mobileNpc.Gender, false);
-                    GameManager.Instance.PlayerObject.GetComponent<DaggerfallAudioSource>().PlayClipAtPoint(soundClip, target.position, 1);
-                }
-            }
-
-            // Tally skills if attack targeted at least one enemy
-            if (cleaves > 0)
-            {
-                if (ScreenWeapon.WeaponType == WeaponTypes.Melee || ScreenWeapon.WeaponType == WeaponTypes.Werecreature)
-                    playerEntity.TallySkill(DFCareer.Skills.HandToHand, 1);
-                else
-                    playerEntity.TallySkill(ScreenWeapon.SpecificWeapon.GetWeaponSkillID(), 1);
-
-                playerEntity.TallySkill(DFCareer.Skills.CriticalStrike, 1);
-            }
-        }
+        if (cleaving != null)
+            StopCoroutine(cleaving);
+        cleaving = ApplyCleaveInterval(transforms, cleaveValue, z, GameManager.classicUpdateInterval * cleaveInterval);
+        StartCoroutine(cleaving);
 
         attackTarget = null;
         attackDamage = 0;
@@ -937,7 +1059,10 @@ public class WeaponFeatures : MonoBehaviour
         {
             //if cleave is out, stop cleaving
             if (cleaveValue < 1)
+            {
+                Debug.Log("Cleave depleted, aborting cleave!");
                 break;
+            }
 
             MobilePersonNPC mobileNpc = target.GetComponent<MobilePersonNPC>();
             if (mobileNpc == null)
@@ -978,21 +1103,6 @@ public class WeaponFeatures : MonoBehaviour
                                     }
                                 }
                             }
-                            else
-                            {
-                                if (cleaveParries)
-                                {
-                                    if (behaviour != null)
-                                    {
-                                        EnemyEntity enemy = behaviour.Entity as EnemyEntity;
-                                        if (enemy != null)
-                                        {
-                                            if (enemy.MobileEnemy.ParrySounds)
-                                                cleaveValue = 0;
-                                        }
-                                    }
-                                }
-                            }
                         }
                     }
                 }
@@ -1010,21 +1120,6 @@ public class WeaponFeatures : MonoBehaviour
                             {
                                 int weight = Mathf.RoundToInt(enemy.GetWeightInClassicUnits() * cleaveWeightMultiplier);
                                 cleaveValue -= weight;
-                            }
-                        }
-                    }
-                    else
-                    {
-                        if (cleaveParries)
-                        {
-                            if (behaviour != null)
-                            {
-                                EnemyEntity enemy = behaviour.Entity as EnemyEntity;
-                                if (enemy != null)
-                                {
-                                    if (enemy.MobileEnemy.ParrySounds)
-                                        cleaveValue = 0;
-                                }
                             }
                         }
                     }
@@ -1052,6 +1147,24 @@ public class WeaponFeatures : MonoBehaviour
             playerEntity.TallySkill(DFCareer.Skills.CriticalStrike, 1);
         }
 
+        cleaving = null;
+    }
+
+    public void AbortCleave()
+    {
+        if (cleaving != null)
+        {
+            StopCoroutine(cleaving);
+
+            cleaving = null;
+
+            if (ScreenWeapon.WeaponType == WeaponTypes.Melee || ScreenWeapon.WeaponType == WeaponTypes.Werecreature)
+                playerEntity.TallySkill(DFCareer.Skills.HandToHand, 1);
+            else
+                playerEntity.TallySkill(ScreenWeapon.SpecificWeapon.GetWeaponSkillID(), 1);
+
+            playerEntity.TallySkill(DFCareer.Skills.CriticalStrike, 1);
+        }
     }
 
     List<Transform> SortByDistanceToPoint(List<Transform> transforms, Vector3 origin)
@@ -1201,6 +1314,44 @@ public class WeaponFeatures : MonoBehaviour
             Debug.Log("Detected an invalid key code. Setting to default.");
             return KeyCode.None;
         }
+    }
+
+    public static void OnNewGame()
+    {
+        Instance.CheckKeyCodeConflict();
+    }
+
+    public static void OnLoad(SaveData_v1 saveData)
+    {
+        Instance.CheckKeyCodeConflict();
+    }
+
+    public void CheckKeyCodeConflict()
+    {
+        if (conflict != null)
+            return;
+
+        if (InputManager.Instance.GetBinding(InputManager.Actions.SwingWeapon) == attackKeyCode)
+        {
+            conflict = MessageKeyCodeConflict();
+            StartCoroutine(conflict);
+        }
+    }
+
+    IEnumerator MessageKeyCodeConflict()
+    {
+        yield return new WaitForSeconds(1);
+
+        string[] strings = new string[2];
+        strings[0] = "KeyCode conflict detected";
+        strings[1] = "Please rebind your SwingWeapon key in the CONTROLS settings.";
+        TextFile.Token[] texts = DaggerfallUnity.Instance.TextProvider.CreateTokens(TextFile.Formatting.JustifyCenter, strings);
+
+        DaggerfallUI.MessageBox(texts);
+
+        yield return new WaitForSeconds(1);
+
+        conflict = null;
     }
 
 }

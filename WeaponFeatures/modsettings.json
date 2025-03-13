@@ -2,7 +2,7 @@
     "Version": null,
     "Sections": [
         {
-            "Name": "Main",
+            "Name": "Controls",
             "Description": null,
             "IsAdvanced": false,
             "Keys": [
@@ -37,52 +37,42 @@
                     "Description": null,
                     "$version": "v1",
                     "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.MultipleChoiceKey"
+                },
+                {
+                    "Min": 0.0,
+                    "Max": 1.0,
+                    "Value": 0.5,
+                    "Name": "VanillaMeleeViewDampenStrength",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderFloatKey"
                 }
             ],
             "$version": "v1"
         },
         {
-            "Name": "Reach",
+            "Name": "HitDetection",
             "Description": null,
             "IsAdvanced": false,
             "Keys": [
                 {
                     "Value": true,
-                    "Name": "Radial",
+                    "Name": "RadialDistance",
                     "Description": "Disregards overlapped targets outside of weapon reach from the player",
                     "$version": "v1",
                     "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.ToggleKey"
                 },
                 {
-                    "Min": 0.0,
-                    "Max": 4.0,
-                    "Value": 1.0,
-                    "Name": "Multiplier",
-                    "Description": null,
-                    "$version": "v1",
-                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderFloatKey"
-                }
-            ],
-            "$version": "v1"
-        },
-        {
-            "Name": "Cleave",
-            "Description": null,
-            "IsAdvanced": false,
-            "Keys": [
-                {
-                    "Min": 0.0,
-                    "Max": 2.0,
-                    "Value": 1.0,
-                    "Name": "Interval",
-                    "Description": null,
-                    "$version": "v1",
-                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderFloatKey"
-                },
-                {
                     "Value": true,
                     "Name": "RequireLineOfSight",
                     "Description": "Perform a LOS check on the target before applying cleave",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.ToggleKey"
+                },
+                {
+                    "Value": false,
+                    "Name": "Safeguard",
+                    "Description": "Prevent commoners and allies from being targeted unless intended",
                     "$version": "v1",
                     "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.ToggleKey"
                 },
@@ -95,7 +85,25 @@
                 },
                 {
                     "Min": 0.0,
-                    "Max": 2.0,
+                    "Max": 4.0,
+                    "Value": 1.0,
+                    "Name": "ReachMultiplier",
+                    "Description": "Globally modifies weapon reach",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderFloatKey"
+                },
+                {
+                    "Min": 0.0,
+                    "Max": 4.0,
+                    "Value": 1.0,
+                    "Name": "CleaveInterval",
+                    "Description": "Amount of delay between Cleave ticks",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderFloatKey"
+                },
+                {
+                    "Min": 0.0,
+                    "Max": 4.0,
                     "Value": 1.0,
                     "Name": "StartingCleaveMultiplier",
                     "Description": "Modifies the base Cleave value when attacking",
@@ -104,10 +112,66 @@
                 },
                 {
                     "Min": 0.0,
-                    "Max": 2.0,
+                    "Max": 4.0,
                     "Value": 1.0,
                     "Name": "TargetWeightMultiplier",
                     "Description": "Modifies the amount of Weight a target subtracts from Cleave",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderFloatKey"
+                }
+            ],
+            "$version": "v1"
+        },
+        {
+            "Name": "Feedback",
+            "Description": null,
+            "IsAdvanced": false,
+            "Keys": [
+                {
+                    "Value": false,
+                    "Name": "PauseEnemyParries",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.ToggleKey"
+                },
+                {
+                    "Value": false,
+                    "Name": "VisibleEnemyDodges",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.ToggleKey"
+                },
+                {
+                    "Value": false,
+                    "Name": "SavingThrowKnockback",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.ToggleKey"
+                },
+                {
+                    "Min": 0.0,
+                    "Max": 2.0,
+                    "Value": 1.0,
+                    "Name": "PauseDurationScale",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderFloatKey"
+                },
+                {
+                    "Min": 0.0,
+                    "Max": 3.0,
+                    "Value": 1.0,
+                    "Name": "DodgeDistanceScale",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderFloatKey"
+                },
+                {
+                    "Min": 0.0,
+                    "Max": 3.0,
+                    "Value": 1.0,
+                    "Name": "KnockbackScale",
+                    "Description": null,
                     "$version": "v1",
                     "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderFloatKey"
                 }
