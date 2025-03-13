@@ -54,6 +54,16 @@ public class HorseRidingWidget : MonoBehaviour
         }
     }
 
+    //charge indicator
+    public bool sprint;
+    public Vector2 sprintOffset;
+    public float sprintScale;
+    public Color sprintColor = Color.white;
+    Texture2D[] sprintTextures;
+    Texture2D sprintTextureCurrent;
+    Rect sprintRect;
+    public int sprintFrameCount;
+
     // Start is called before the first frame update
     public void Initialize()
     {
@@ -84,6 +94,23 @@ public class HorseRidingWidget : MonoBehaviour
             frame++;
         }
         headingTextureCurrent = headingTextures[0];
+
+        //initialize charge textures
+        sprintTextures = new Texture2D[sprintFrameCount + 1];
+        archive = 7620;
+        if (HorseRidingOverhaul.Instance.galloping == 3)
+            record = 2;
+        else
+            record = 3;
+        frame = 0;
+        for (int i = 0; i < sprintFrameCount + 1; i++)
+        {
+            Texture2D texture;
+            DaggerfallWorkshop.Utility.AssetInjection.TextureReplacement.TryImportTexture(archive, record, frame, out texture);
+            sprintTextures[i] = texture;
+            frame++;
+        }
+        sprintTextureCurrent = sprintTextures[0];
 
         initialized = true;
     }
@@ -197,6 +224,19 @@ public class HorseRidingWidget : MonoBehaviour
                     headingTextureIndex = headingFrameCount;
                 headingTextureCurrent = headingTextures[headingFrameCount - headingTextureIndex];
             }
+
+            if (sprint)
+            {
+                //update charge texture
+                if (HorseRidingOverhaul.Instance.galloping == 3)
+                    sprintTextureCurrent = sprintTextures[HorseRidingOverhaul.Instance.tokenCurrent];
+                else if (HorseRidingOverhaul.Instance.galloping == 2)
+                {
+                    int chargeTextureIndex = Mathf.RoundToInt((sprintTextures.Length-1)*(HorseRidingOverhaul.Instance.staminaCurrent / HorseRidingOverhaul.Instance.staminaMax));
+                    chargeTextureIndex = Mathf.Clamp(chargeTextureIndex, 0, sprintTextures.Length-1);
+                    sprintTextureCurrent = sprintTextures[chargeTextureIndex];
+                }
+            }
         }
     }
     private void OnGUI()
@@ -265,6 +305,15 @@ public class HorseRidingWidget : MonoBehaviour
             Vector2 speedTextureOffset = new Vector2(speedTextureScale.x, speedTextureScale.y) * 0.5f;
             speedRect = new Rect(speedPos - speedTextureOffset, speedTextureScale);
             DaggerfallUI.DrawTexture(speedRect, speedTextureCurrent,ScaleMode.StretchToFill,false,speedColor);
+        }
+
+        if (sprint && GameManager.Instance.TransportManager.TransportMode == TransportModes.Horse && HorseRidingOverhaul.Instance.ShowCharges)
+        {
+            Vector2 chargePos = new Vector2(HorseRidingOverhaul.Instance.screenRect.x + (HorseRidingOverhaul.Instance.screenRect.width * sprintOffset.x), HorseRidingOverhaul.Instance.screenRect.y + (HorseRidingOverhaul.Instance.screenRect.height * sprintOffset.y) - LargeHudOffset);
+            Vector2 chargeTextureScale = new Vector2(sprintTextureCurrent.width * screenScaleX, sprintTextureCurrent.height * screenScaleY) * sprintScale;
+            Vector2 chargeTextureOffset = new Vector2(chargeTextureScale.x, chargeTextureScale.y) * 0.5f;
+            sprintRect = new Rect(chargePos - chargeTextureOffset, chargeTextureScale);
+            DaggerfallUI.DrawTexture(sprintRect, sprintTextureCurrent, ScaleMode.StretchToFill, false, sprintColor);
         }
     }
 }

@@ -1,12 +1,16 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using DaggerfallConnect;
 using DaggerfallWorkshop;
 using DaggerfallWorkshop.Utility;
 using DaggerfallWorkshop.Game;
+using DaggerfallWorkshop.Game.Entity;
+using DaggerfallWorkshop.Game.Formulas;
 using DaggerfallWorkshop.Game.Utility.ModSupport;
 using DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings;
 using DaggerfallWorkshop.Game.Serialization;
+using DaggerfallWorkshop.Game.UserInterfaceWindows;
 using UnityEngine;
 
 public class HorseRidingOverhaul : MonoBehaviour
@@ -14,6 +18,7 @@ public class HorseRidingOverhaul : MonoBehaviour
     public static HorseRidingOverhaul Instance;
 
     bool wasRiding;
+    bool wasGrounded;
 
     Camera playerCamera;
     GameObject playerObject;
@@ -37,6 +42,9 @@ public class HorseRidingOverhaul : MonoBehaviour
 
     public float angleYaw;
     public float anglePitch;
+
+    bool limitYaw;
+    float limitYawAngle = 165f;
 
     public int speedIndex = 1;
     float[] speeds = new float[] { -0.25f, 0, 0.5f, 1.0f };
@@ -85,17 +93,23 @@ public class HorseRidingOverhaul : MonoBehaviour
     float customAudioVolume;
     IEnumerator audioRiding;
     AudioClip[] audioHorseStepWalk;
+    AudioClip[] audioHorseStepWalkPath;
+    AudioClip[] audioHorseStepWalkSnow;
     AudioClip[] audioHorseStepSprint;
+    AudioClip[] audioHorseStepSprintPath;
+    AudioClip[] audioHorseStepSprintSnow;
     AudioClip[] audioHorseNoise;
     AudioClip[] audioHorseMount;
     AudioClip[] audioHorseDismount;
     AudioClip[] audioHorseCollision;
+    AudioClip[] audioHorseWinded;
     public bool[] gait1 = new bool[] { false, false, false, false, true };
     public bool[] gait2 = new bool[] { false, false, false, true };
     public bool[] gait3 = new bool[] { false, false, true };
     public bool[] gait4 = new bool[] { false, false, false, true, true, true };
     public bool[] gait5 = new bool[] { false, false, true, true, true, true };
     public bool[] currentGait;
+    public bool[] gaitLand = new bool[] { true, true };
     bool sprint;
 
     float lastCollision;
@@ -109,7 +123,74 @@ public class HorseRidingOverhaul : MonoBehaviour
     KeyCode throttleKeyCode = KeyCode.KeypadEnter;
     KeyCode viewKeyCode = KeyCode.KeypadPlus;
 
-    bool galloping;
+    public int galloping;  //0 = none, 1 = vanilla, 2 = stamina, 3 = token
+
+    public int tokenCurrent = 3;
+    public int tokenMax = 3;
+    float tokenDuration = 1;
+    float tokenTime = 6;
+    float tokenTimer;
+    IEnumerator charging;
+
+    public float staminaCurrent = 100;
+    public float staminaMax = 100;
+    float staminaDrainBase = 0.25f;
+    float staminaDrainThrottle = 0.75f;
+    float staminaDrain;
+    public bool isStaminaDrained;
+
+    //testing handling mods
+    //horse
+    public float modMoveSpeed = 1;
+    public float modMoveAccel = 1;
+    public float modMoveBrake = 1;
+    public float modTurnSpeed = 1;
+    public float modTurnAccel = 1;
+    public float modTurnBrake = 1;
+
+    //cart
+    public float modCartMoveSpeed = 1;
+    public float modCartMoveAccel = 1;
+    public float modCartMoveBrake = 1;
+    public float modCartTurnSpeed = 1;
+    public float modCartTurnAccel = 1;
+    public float modCartTurnBrake = 1;
+
+    //gallop
+    public bool modCanRun = true;   //can prevent gallop
+    public float modRunSpeed = 1;  //multiplier for gallop speed
+    string modRunSpeedUID;
+
+    //trample
+    public float modTrampleAccuracy = 1;    //base accuracy is 25%
+    public float modTrampleDamage = 1;
+
+    //gallop token system
+    public int modTokenMax = 3;
+    public float modTokenDuration = 1;
+    public float modTokenTime = 6;
+
+    //gallop stamina system
+    public float modStaminaMax = 100;
+    public float modStaminaDrain = 0.25f;
+
+    bool showCharge;
+    float showChargeTime = 2;
+    float showChargeTimer;
+    public bool ShowCharges
+    {
+        get
+        {
+            if (!showCharge)
+                return true;
+            else if (galloping == 3 && (tokenCurrent < tokenMax || showChargeTimer < showChargeTime))
+                return true;
+            else if (galloping == 2 && (staminaCurrent < staminaMax || showChargeTimer < showChargeTime))
+                return true;
+            else
+                return false;
+        }
+    }
 
     bool slopeFollow;
     float targetSlopeAngle;
@@ -125,13 +206,41 @@ public class HorseRidingOverhaul : MonoBehaviour
     float inertiaSpeed = 1;
     float inertiaStrength = 1;
 
+    //trampling
+    public int trample;    //0 = none, 1 = enemies only, 2 = all entities
+    public int trampleSkill = 20;
+
     //EOTB compatibility
     bool isInThirdPerson;
 
     //Travel Options compatibility
     bool hasTravelOptions;
+    bool fullSpeedOnTravel;
     public bool isTravelling;
     public bool wasTravelling;
+
+    public bool IsMovingLessThanHalfSpeed
+    {
+        get
+        {
+            if (GameManager.Instance.PlayerMotor.IsStandingStill)
+                return true;
+
+            //add a buffer to prevent ping-ponging from decimals
+            float threshold;
+            if (GameManager.Instance.PlayerMotor.IsCrouching)
+                threshold = 1 + GameManager.Instance.SpeedChanger.GetWalkSpeed(GameManager.Instance.PlayerEntity) / 2;
+            else
+                threshold = 1 + GameManager.Instance.SpeedChanger.GetBaseSpeed() / 2;
+
+            //Get actual movement speed without gravity
+            float speed = new Vector3(GameManager.Instance.PlayerMotor.MoveDirection.x,0, GameManager.Instance.PlayerMotor.MoveDirection.z).magnitude;
+
+            //Debug.Log(threshold.ToString() + " > " + speed.ToString());
+
+            return threshold > speed;
+        }
+    }
 
     static Mod mod;
     [Invoke(StateManager.StateTypes.Start, 0)]
@@ -144,7 +253,20 @@ public class HorseRidingOverhaul : MonoBehaviour
     }
     public bool CanRunUnlessRidingCart()
     {
-        return !((GameManager.Instance.TransportManager.TransportMode == TransportModes.Cart || !galloping) && playerMotor.IsRiding);
+        //prevent run if mod horse can't gallop
+        if (!modCanRun && playerMotor.IsRiding)
+            return false;
+
+        //prevent carts from galloping
+        if (galloping == 3)
+            return !(playerMotor.IsRiding && charging == null);
+        else if (galloping == 2)
+            return !(playerMotor.IsRiding && (staminaCurrent <= 0 || isStaminaDrained || GameManager.Instance.TransportManager.TransportMode == TransportModes.Cart));
+        else
+            return !((GameManager.Instance.TransportManager.TransportMode == TransportModes.Cart || galloping != 1) && playerMotor.IsRiding);
+
+        //allow carts to gallop
+        //return !(galloping == 0 && playerMotor.IsRiding);
     }
 
     void Awake()
@@ -185,7 +307,14 @@ public class HorseRidingOverhaul : MonoBehaviour
 
         transportManager.RidingVolumeScale = 0;
 
+        //add collision handler
+        GameManager.Instance.PlayerObject.AddComponent<HorseRidingCollision>();
+
         SaveLoadManager.OnLoad += OnLoad;
+        SaveLoadManager.OnStartLoad += OnStartLoad;
+        GameManager.Instance.PlayerEntity.OnExhausted += OnExhausted;
+        DaggerfallTravelPopUp.OnPostFastTravel += OnPostFastTravel;
+        DaggerfallTravelPopUp.OnPreFastTravel += OnPreFastTravel;
 
         audioHorseStepWalk = new AudioClip[]
         {
@@ -231,6 +360,11 @@ public class HorseRidingOverhaul : MonoBehaviour
             mod.GetAsset<AudioClip>("Horse Snort 8"),
             mod.GetAsset<AudioClip>("Horse Snort 9"),
             mod.GetAsset<AudioClip>("Horse Snort 10"),
+            mod.GetAsset<AudioClip>("horse_snort_1"),
+            mod.GetAsset<AudioClip>("horse_snort_2"),
+            mod.GetAsset<AudioClip>("horse_snort_3"),
+            mod.GetAsset<AudioClip>("horse_snort_4"),
+            mod.GetAsset<AudioClip>("horse_snort_5"),
         };
 
         audioHorseMount = new AudioClip[]
@@ -252,6 +386,19 @@ public class HorseRidingOverhaul : MonoBehaviour
             mod.GetAsset<AudioClip>("Horse Rearup 3"),
         };
 
+        audioHorseWinded = new AudioClip[]
+        {
+            mod.GetAsset<AudioClip>("horse_exterior_whinny_01"),
+            mod.GetAsset<AudioClip>("horse_exterior_whinny_02"),
+            mod.GetAsset<AudioClip>("horse_exterior_whinny_03"),
+            mod.GetAsset<AudioClip>("horse_exterior_whinny_04"),
+            mod.GetAsset<AudioClip>("horse_exterior_whinny_05"),
+            mod.GetAsset<AudioClip>("horse_whinny"),
+            mod.GetAsset<AudioClip>("horse_whinny-1"),
+            mod.GetAsset<AudioClip>("horse_whinny-2"),
+        };
+
+        mod.MessageReceiver = MessageReceiver;
         mod.IsReady = true;
     }
 
@@ -261,25 +408,141 @@ public class HorseRidingOverhaul : MonoBehaviour
         Mod eotb = ModManager.Instance.GetModFromGUID("2942ea8c-dbd4-42af-bdf9-8199d2f4a0aa");
         if (eotb != null)
         {
+            //tell EOTB this mod exists
+            ModManager.Instance.SendModMessage(eotb.Title, "hasFreeRein");
+
             //subscribe to EOTB's OnToggleOffset event
             ModManager.Instance.SendModMessage(eotb.Title, "onToggleOffset", (Action<bool>)(toggleState => {
                 isInThirdPerson = toggleState;
             }));
         }
 
-
         //Check for Travel Options mod
         Mod travelOptions = ModManager.Instance.GetModFromGUID("93f3ad1c-83cc-40ac-b762-96d2f47f2e05");
         hasTravelOptions = travelOptions != null ? true : false;
     }
+    void MessageReceiver(string message, object data, DFModMessageCallback callBack)
+    {
+        switch (message)
+        {
+            case "getMoveVector":
+                callBack?.Invoke("getMoveVector", moveVector);
+                break;
+            case "setModHorseMove":
+                SetModHorseMove((Vector3)data);
+                break;
+            case "setModHorseTurn":
+                SetModHorseTurn((Vector3)data);
+                break;
+            case "setModCartMove":
+                SetModCartMove((Vector3)data);
+                break;
+            case "setModCartTurn":
+                SetModCartTurn((Vector3)data);
+                break;
+            case "setModGallop":
+                SetModGallop((Vector2)data);
+                break;
+            case "setModTrample":
+                SetModTrample((Vector2)data);
+                break;
+            case "resetHorse":
+                ResetVariables();
+                break;
 
-    public static void OnLoad(SaveData_v1 saveData)
+            default:
+                Debug.LogErrorFormat("{0}: unknown message received ({1}).", this, message);
+                break;
+        }
+    }
+
+    void SetModHorseMove(Vector3 mods)
+    {
+        modMoveSpeed = mods.x;
+        modMoveAccel = mods.y;
+        modMoveBrake = mods.z;
+    }
+
+    void SetModHorseTurn(Vector3 mods)
+    {
+        modTurnSpeed = mods.x;
+        modTurnAccel = mods.y;
+        modTurnBrake = mods.z;
+    }
+
+    void SetModCartMove(Vector3 mods)
+    {
+        modCartMoveSpeed = mods.x;
+        modCartMoveAccel = mods.y;
+        modCartMoveBrake = mods.z;
+    }
+
+    void SetModCartTurn(Vector3 mods)
+    {
+        modCartTurnSpeed = mods.x;
+        modCartTurnAccel = mods.y;
+        modCartTurnBrake = mods.z;
+    }
+
+    void SetModGallop(Vector2 mods)
+    {
+        modCanRun = mods.x == 1 ? true : false;
+        modRunSpeed = mods.y;
+
+        if (wasRiding)
+        {
+            GameManager.Instance.SpeedChanger.RemoveSpeedMod(modRunSpeedUID, true, true);
+            GameManager.Instance.SpeedChanger.AddRunSpeedMod(out modRunSpeedUID, modRunSpeed);
+        }
+    }
+
+    void SetModTrample(Vector2 mods)
+    {
+        modTrampleAccuracy = mods.x;
+        modTrampleDamage = mods.y;
+    }
+
+    public static void OnPreFastTravel(DaggerfallTravelPopUp daggerfallTravelPopUp)
     {
         Instance.ResetVariables();
     }
 
+    public static void OnPostFastTravel()
+    {
+        Instance.ResetVariablesWithDelay();
+    }
+
+    public static void OnExhausted(DaggerfallEntity entity)
+    {
+        Instance.ResetVariables();
+    }
+
+    public static void OnStartLoad(SaveData_v1 saveData)
+    {
+        Instance.ResetVariables();
+    }
+
+    public static void OnLoad(SaveData_v1 saveData)
+    {
+        Instance.ResetVariablesWithDelay();
+    }
+
+    public void ResetVariablesWithDelay(float delay = 1)
+    {
+        StartCoroutine(ResetVariablesWithDelayCoroutine(delay));
+    }
+
+    IEnumerator ResetVariablesWithDelayCoroutine(float delay)
+    {
+        yield return new WaitForSeconds(delay);
+
+        ResetVariables();
+    }
+
     private void LoadSettings(ModSettings settings, ModSettingsChange change)
     {
+        int oldGalloping = galloping;
+        int oldFrameCount = widget.sprintFrameCount;
         if (change.HasChanged("Controls"))
         {
             steering = settings.GetValue<int>("Controls", "DefaultSteeringType");
@@ -293,13 +556,27 @@ public class HorseRidingOverhaul : MonoBehaviour
         }
         if (change.HasChanged("Handling"))
         {
-            galloping = settings.GetValue<bool>("Handling", "Galloping");
+            galloping = settings.GetValue<int>("Handling", "Galloping");
+            if (galloping == 3)
+                widget.sprintFrameCount = tokenMax;
+            else
+                widget.sprintFrameCount = settings.GetValue<int>("Widget", "SprintStaminaFrames");
+            staminaDrainBase = 2-settings.GetValue<float>("Handling", "GallopMaxStamina");
+            staminaDrainThrottle = settings.GetValue<float>("Handling", "GallopStaminaDrain")+0.5f;
+            tokenDuration = settings.GetValue<float>("Handling", "GallopDuration");
+            tokenMax = settings.GetValue<int>("Handling", "MaxGallopTokens");
+            tokenCurrent = tokenMax;
+            tokenTime = (float)settings.GetValue<int>("Handling", "GallopTokenCooldown");
+            limitYaw = settings.GetValue<bool>("Handling", "LimitYawAngle");
+            limitYawAngle = settings.GetValue<int>("Handling", "MaximumYawAngle");
             acceleration = settings.GetValue<bool>("Handling", "Acceleration");
             moveAcceleration = settings.GetValue<float>("Handling", "MoveAcceleration");
             moveBraking = settings.GetValue<float>("Handling", "MoveBraking");
             turnSpeed = settings.GetValue<float>("Handling", "TurnSpeed");
             turnAcceleration = settings.GetValue<float>("Handling", "TurnAcceleration");
             turnBraking = settings.GetValue<float>("Handling", "TurnBraking");
+            trample = settings.GetValue<int>("Handling", "Trampling");
+            trampleSkill = settings.GetValue<int>("Handling", "HorseTrampleSkill");
         }
         if (change.HasChanged("CustomAudio"))
         {
@@ -332,9 +609,24 @@ public class HorseRidingOverhaul : MonoBehaviour
             widget.headingScale = settings.GetValue<float>("Widget", "HeadingScale");
             widget.headingColor = settings.GetColor("Widget", "HeadingColor");
             widget.headingIntervalIndex = settings.GetValue<int>("Widget", "HeadingInterval");
-            widget.Initialize();
-
+            widget.sprint = settings.GetValue<bool>("Widget", "Sprint");
+            widget.sprintOffset = new Vector2(settings.GetTupleFloat("Widget", "SprintPosition").First, settings.GetTupleFloat("Widget", "SprintPosition").Second);
+            widget.sprintScale = settings.GetValue<float>("Widget", "SprintScale");
+            widget.sprintColor = settings.GetColor("Widget", "SprintColor");
+            if (galloping == 3)
+                widget.sprintFrameCount = tokenMax;
+            else
+                widget.sprintFrameCount = settings.GetValue<int>("Widget", "SprintStaminaFrames");
+            showCharge = settings.GetValue<bool>("Widget", "HideSprint");
+            showChargeTime = settings.GetValue<float>("Widget", "HideSprintTime");
         }
+        if (change.HasChanged("Compatibility"))
+        {
+            fullSpeedOnTravel = settings.GetValue<bool>("Compatibility", "FullSpeedOnTravel");
+        }
+
+        if (change.HasChanged("Widget") || oldGalloping != galloping || oldFrameCount != widget.sprintFrameCount)
+            widget.Initialize();
     }
 
     void ResetVariables()
@@ -352,7 +644,7 @@ public class HorseRidingOverhaul : MonoBehaviour
 
         currentInertia = 1;
 
-        moveVector = (Quaternion.AngleAxis(Yaw, Vector3.up) * Vector3.forward) * 1;
+        moveVector = Quaternion.AngleAxis(Yaw, Vector3.up) * Vector3.forward;
         lastMoveVector = moveVector;
     }
 
@@ -361,26 +653,14 @@ public class HorseRidingOverhaul : MonoBehaviour
         if (GameManager.IsGamePaused)
             return;
 
-        if (playerMotor.IsRiding && hasTravelOptions)
+        if (playerMotor.IsRiding)
         {
-            ModManager.Instance.SendModMessage("TravelOptions", "isTravelActive", null, (string message, object data) =>
+            if (hasTravelOptions)
             {
-                isTravelling = (bool)data;
-            });
-
-            //just started travelling
-            if (isTravelling && !wasTravelling)
-            {
-                //do thing
-                wasTravelling = isTravelling;
-            }
-
-            //just stopped travelling
-            if (!isTravelling && wasTravelling)
-            {
-                ResetVariables();
-                //do thing
-                wasTravelling = isTravelling;
+                ModManager.Instance.SendModMessage("TravelOptions", "isTravelActive", null, (string message, object data) =>
+                {
+                    isTravelling = (bool)data;
+                });
             }
         }
     }
@@ -396,15 +676,54 @@ public class HorseRidingOverhaul : MonoBehaviour
 
                 Tint = transportManager.Tint;
 
+                if (hasTravelOptions)
+                {
+                    //just started travelling
+                    if (isTravelling && !wasTravelling)
+                    {
+                        //do thing
+                        if (fullSpeedOnTravel)
+                        {
+                            if (throttle == 1)
+                                InputManager.Instance.ToggleAutorun = true;
+                            else
+                                speedIndex = speeds.Length - 1;
+                        }
+
+                        wasTravelling = isTravelling;
+                    }
+
+                    //just stopped travelling
+                    if (!isTravelling && wasTravelling)
+                    {
+                        ResetVariables();
+
+                        //do thing
+                        if (fullSpeedOnTravel)
+                        {
+                            if (throttle == 1)
+                                InputManager.Instance.ToggleAutorun = false;
+                            else
+                                speedIndex = 1;
+                        }
+
+                        wasTravelling = isTravelling;
+                    }
+                }
+
                 //if transport mode changed or just started riding
                 if (lastTransportMode != transportManager.TransportMode || !wasRiding)
                 {
                     //Just started riding
                     if (!wasRiding)
                     {
+                        wasRiding = true;
+
                         ResetVariables();
                         playerMotor.limitDiagonalSpeed = false;
-                        wasRiding = true;
+
+                        //GameManager.Instance.SpeedChanger.AddWalkSpeedMod(out speedWalkModUID, speedWalkMod);
+                        GameManager.Instance.SpeedChanger.AddRunSpeedMod(out modRunSpeedUID, modRunSpeed);
                     }
 
                     // Setup appropriate riding textures.
@@ -423,7 +742,21 @@ public class HorseRidingOverhaul : MonoBehaviour
                     lastTransportMode = transportManager.TransportMode;
 
                     if (customAudio)
-                        dfAudioSource.AudioSource.PlayOneShot(audioHorseMount[UnityEngine.Random.Range(0, audioHorseMount.Length - 1)], 0.25f * DaggerfallUnity.Settings.SoundVolume * customAudioVolume);
+                        dfAudioSource.AudioSource.PlayOneShot(audioHorseMount[UnityEngine.Random.Range(0, audioHorseMount.Length)], 0.25f * DaggerfallUnity.Settings.SoundVolume * customAudioVolume);
+                }
+
+                //make a noise when RUN is pressed
+                if (InputManager.Instance.ActionStarted(InputManager.Actions.Run))
+                {
+                    if (customAudio)
+                    {
+                        PlayerEntity playerEntity = GameManager.Instance.PlayerEntity;
+                        SoundClips sound = DaggerfallEntity.GetRaceGenderAttackSound(playerEntity.Race, playerEntity.Gender, true);
+                        float pitch = dfAudioSource.AudioSource.pitch;
+                        dfAudioSource.AudioSource.pitch = pitch + UnityEngine.Random.Range(0, 0.3f);
+                        dfAudioSource.PlayOneShot(sound, 1, 0.5f * DaggerfallUnity.Settings.SoundVolume * customAudioVolume);
+                        dfAudioSource.AudioSource.pitch = pitch;
+                    }
                 }
 
                 //slope following
@@ -445,9 +778,21 @@ public class HorseRidingOverhaul : MonoBehaviour
                 GameManager.Instance.PlayerMouseLook.PitchMaxLimit = 45f + currentSlopeAngle + currentGravityOffset;
 
                 bool isRidingCart = transportManager.TransportMode == TransportModes.Cart ? true : false;
-                float cartMod = 1;
+                float cartMoveSpeedMod = 1;
+                float cartMoveAccelMod = 1;
+                float cartMoveBrakeMod = 1;
+                float cartTurnSpeedMod = 1;
+                float cartTurnAccelMod = 1;
+                float cartTurnBrakeMod = 1;
                 if (isRidingCart)
-                    cartMod = 0.5f;
+                {
+                    cartMoveSpeedMod = modCartMoveSpeed;
+                    cartMoveAccelMod = modCartMoveAccel * 0.5f;
+                    cartMoveBrakeMod = modCartMoveBrake * 0.5f;
+                    cartTurnSpeedMod = modCartTurnSpeed * 0.5f;
+                    cartTurnAccelMod = modCartTurnAccel * 0.5f;
+                    cartTurnBrakeMod = modCartTurnBrake * 0.5f;
+                }
 
                 transportManager.DrawHorse = false;
 
@@ -503,8 +848,8 @@ public class HorseRidingOverhaul : MonoBehaviour
                     }
                     else
                     {
-                        if ((speedIndex == speeds.Length - 1 && galloping && running) || (speedIndex == speeds.Length - 1 && !galloping) || speedIndex == 0)
-                            speedIndex = 1;    //at full speed and sprinting or in reverse, stop
+                        if (speedIndex == 0)
+                            speedIndex = 1;    //in reverse, stop
                         else
                             speedIndex = speeds.Length - 1;    //otherwise, go full speed
                     }
@@ -523,7 +868,7 @@ public class HorseRidingOverhaul : MonoBehaviour
                         if (((throttle == 0 && speedIndex == 1) || (throttle == 1 && currentThrottle == 0)) && !isRidingCart)
                         {
                             if (Mathf.Abs(angleYaw) > 1)
-                                targetYaw = -90 * turnSpeed * cartMod * Mathf.Clamp(angleYaw / 30, -1, 1) * Time.deltaTime;
+                                targetYaw = -90 * turnSpeed * modTurnSpeed * cartTurnSpeedMod * Mathf.Clamp(angleYaw / 30, -1, 1) * Time.deltaTime;
                             else
                                 targetYaw = 0;
 
@@ -536,21 +881,21 @@ public class HorseRidingOverhaul : MonoBehaviour
                         else
                         {
                             if (Mathf.Abs(angleYaw) > 31)
-                                targetYaw = -90 * turnSpeed * cartMod * Mathf.Clamp(angleYaw / 30, -1, 1) * Time.deltaTime;
+                                targetYaw = -90 * turnSpeed * modTurnSpeed * cartTurnSpeedMod * Mathf.Clamp(angleYaw / 30, -1, 1) * Time.deltaTime;
                             else
                                 targetYaw = 0;
 
                             if (InputManager.Instance.HasAction(InputManager.Actions.MoveLeft) && angleYaw > -30)
-                                targetYaw = -45 * turnSpeed * cartMod * Time.deltaTime;
+                                targetYaw = -45 * turnSpeed * modTurnSpeed * cartTurnSpeedMod * Time.deltaTime;
 
                             if (InputManager.Instance.HasAction(InputManager.Actions.MoveRight) && angleYaw < 30)
-                                targetYaw = 45 * turnSpeed * cartMod * Time.deltaTime;
+                                targetYaw = 45 * turnSpeed * modTurnSpeed * cartTurnSpeedMod * Time.deltaTime;
                         }
                     }
                     else
                     {
                         if (Mathf.Abs(angleYaw) > 1)
-                            targetYaw = -90 * turnSpeed * cartMod * Mathf.Clamp(angleYaw / 30, -1, 1) * Time.deltaTime;
+                            targetYaw = -90 * turnSpeed * modTurnSpeed * cartTurnSpeedMod * Mathf.Clamp(angleYaw / 30, -1, 1) * Time.deltaTime;
                         else
                             targetYaw = 0;
                     }
@@ -565,27 +910,27 @@ public class HorseRidingOverhaul : MonoBehaviour
                         playerMouseLook.SetHorizontalFacing(moveVector);
                     }
 
-                    float turnForce = turnBraking;
+                    float turnForce = turnBraking * modTurnBrake * cartTurnBrakeMod;
 
                     if (InputManager.Instance.HasAction(InputManager.Actions.MoveLeft) || InputManager.Instance.HasAction(InputManager.Actions.MoveRight))
                     {
                         if (InputManager.Instance.HasAction(InputManager.Actions.MoveLeft))
-                            targetYaw = -90 * turnSpeed * cartMod * Time.deltaTime;
+                            targetYaw = -90 * turnSpeed * modTurnSpeed * cartTurnSpeedMod * Time.deltaTime;
 
                         if (InputManager.Instance.HasAction(InputManager.Actions.MoveRight))
-                            targetYaw = 90 * turnSpeed * cartMod * Time.deltaTime;
+                            targetYaw = 90 * turnSpeed * modTurnSpeed * cartTurnSpeedMod * Time.deltaTime;
 
-                        turnForce = turnAcceleration;
+                        turnForce = turnAcceleration * modTurnAccel * cartTurnAccelMod;
                     }
                     else
                         targetYaw = 0;
 
                     //center horse to view while input held
                     if (InputManager.Instance.GetKey(centerHorseKeyCode))
-                        targetYaw = -90 * turnSpeed * Mathf.Clamp(angleYaw / 30, -1, 1) * Time.deltaTime;
+                        targetYaw = -90 * turnSpeed * modTurnSpeed * Mathf.Clamp(angleYaw / 30, -1, 1) * Time.deltaTime;
 
                     //move currentYaw to targetYaw
-                    currentYaw = Mathf.MoveTowards(currentYaw, targetYaw, 3 * turnForce * cartMod * Time.deltaTime);
+                    currentYaw = Mathf.MoveTowards(currentYaw, targetYaw, 3 * turnForce * Time.deltaTime);
 
                     if (acceleration && !isTravelling)
                         Yaw += currentYaw;
@@ -641,6 +986,36 @@ public class HorseRidingOverhaul : MonoBehaviour
                         speedIndex = 1;
                 }
 
+                //Sprint interrupt
+                //Pressing RUN always goes full speed unless in reverse
+                if (InputManager.Instance.HasAction(InputManager.Actions.Run) && !colliding)
+                {
+                    //if not in reverse, go full speed
+                    if (throttle == 1)
+                    {
+                        if (targetThrottle >= 0)
+                            targetThrottle = 1;
+                    }
+                    else
+                    {
+                        if (speedIndex > 0)
+                            speedIndex = speeds.Length - 1;
+                    }
+                }
+
+                //SNEAK is now a handbrake
+                if (InputManager.Instance.HasAction(InputManager.Actions.Sneak))
+                {
+                    //go to stop
+                    if (throttle == 1)
+                        targetThrottle = 0;
+                    else
+                        speedIndex = 1;
+
+                    //disable sneak
+                    GameManager.Instance.SpeedChanger.sneakingMode = false;
+                }
+
                 //collision
                 colliding = false;
                 if ((throttle == 0 && speedIndex != 1) || (throttle == 1 && currentThrottle != 0))
@@ -659,7 +1034,7 @@ public class HorseRidingOverhaul : MonoBehaviour
                             //play rear up noise
                             if (customAudio && Time.time - lastCollision > 2)
                             {
-                                dfAudioSource.AudioSource.PlayOneShot(audioHorseCollision[UnityEngine.Random.Range(0, audioHorseCollision.Length - 1)], 0.25f * DaggerfallUnity.Settings.SoundVolume * customAudioVolume);
+                                dfAudioSource.AudioSource.PlayOneShot(audioHorseCollision[UnityEngine.Random.Range(0, audioHorseCollision.Length)], 0.5f * DaggerfallUnity.Settings.SoundVolume * customAudioVolume);
                                 lastCollision = Time.time;
                             }
 
@@ -672,19 +1047,102 @@ public class HorseRidingOverhaul : MonoBehaviour
                     }
                 }
 
+                if (galloping == 3 && !GameManager.IsGamePaused)
+                {
+                    //handle charges and cooldowns
+                    //do not count cooldown while charging
+                    if (tokenCurrent < tokenMax && charging == null)
+                    {
+                        float chargeTimeFinal = tokenTime + (tokenTime * (-0.5f+currentThrottle));
+                        Debug.Log(chargeTimeFinal.ToString());
+                        if (tokenTimer > chargeTimeFinal)
+                        {
+                            tokenCurrent++;
+                            tokenTimer = 0;
+                        }
+                        else
+                            tokenTimer += Time.deltaTime;
+                    }
+
+                    //handle input
+                    if (InputManager.Instance.ActionStarted(InputManager.Actions.Run))
+                        TryStartCharge();
+
+                    if (tokenCurrent == tokenMax)
+                    {
+                        if (showChargeTimer < showChargeTime)
+                            showChargeTimer += Time.deltaTime;
+                    }
+                    else
+                        showChargeTimer = 0;
+                }
+
+                if (galloping == 2 && !GameManager.IsGamePaused)
+                {
+
+                    float runMod = playerMotor.IsRunning ? 2 : 1;
+                    float reverseMod = currentThrottle < 0 ? 4 : 1;
+
+                    staminaDrain = (staminaMax*(0.5f*staminaDrainBase)) * (1 - ((0.5f*staminaDrainThrottle) * (Mathf.Abs(currentThrottle) * reverseMod * runMod)));
+
+                    staminaCurrent += staminaDrain * Time.deltaTime;
+
+                    if (staminaCurrent > staminaMax)
+                        staminaCurrent = staminaMax;
+                    else if (staminaCurrent < 0)
+                    {
+                        if (!isStaminaDrained)
+                        {
+                            dfAudioSource.AudioSource.PlayOneShot(audioHorseWinded[UnityEngine.Random.Range(0, audioHorseWinded.Length)], 0.5f * DaggerfallUnity.Settings.SoundVolume * customAudioVolume);
+                            isStaminaDrained = true;
+                        }
+                        if (InputManager.Instance.ToggleAutorun)
+                            InputManager.Instance.ToggleAutorun = false;
+                        if (GameManager.Instance.SpeedChanger.ToggleRun)
+                            GameManager.Instance.SpeedChanger.ToggleRun = false;
+                        if (GameManager.Instance.SpeedChanger.runningMode)
+                            GameManager.Instance.SpeedChanger.runningMode = false;
+                        staminaCurrent = 0;
+                    }
+
+                    if (isStaminaDrained)
+                    {
+                        if (!InputManager.Instance.HasAction(InputManager.Actions.Run) && staminaCurrent > 0)
+                            isStaminaDrained = false;
+                    }
+
+                    if (staminaCurrent == staminaMax)
+                    {
+                        if (showChargeTimer < showChargeTime)
+                            showChargeTimer += Time.deltaTime;
+                    }
+                    else
+                        showChargeTimer = 0;
+                }
+
                 //set variables
+                float moveSpeed = modMoveSpeed;
+                float moveAccel = modMoveAccel;
+                float moveBrake = modMoveBrake;
+                if (isRidingCart)
+                {
+                    moveSpeed = cartMoveSpeedMod;
+                    moveAccel = cartMoveAccelMod;
+                    moveBrake = cartMoveBrakeMod;
+                }
+
                 if (throttle == 1)
                 {
                     if (acceleration)
                     {
-                        float moveForce = moveBraking;
+                        float moveForce = moveBraking * moveBrake;
                         if ((InputManager.Instance.HasAction(InputManager.Actions.MoveForwards) || InputManager.Instance.HasAction(InputManager.Actions.MoveBackwards) || InputManager.Instance.ToggleAutorun) && !colliding)
-                            moveForce = moveAcceleration;
+                            moveForce = moveAcceleration * moveAccel;
 
-                        currentThrottle = Mathf.MoveTowards(currentThrottle, targetThrottle, moveForce * Time.deltaTime);
+                        currentThrottle = Mathf.MoveTowards(currentThrottle, targetThrottle * moveSpeed, moveForce * Time.deltaTime);
                     }
                     else
-                        currentThrottle = targetThrottle;
+                        currentThrottle = targetThrottle * moveSpeed;
 
                     /*if (InputManager.Instance.ToggleAutorun)
                         currentThrottle = Mathf.MoveTowards(currentThrottle, targetThrottle, moveAcceleration * Time.deltaTime);
@@ -694,16 +1152,17 @@ public class HorseRidingOverhaul : MonoBehaviour
                 else
                 {
                     targetThrottle = speeds[speedIndex];
+
                     if (acceleration && !isTravelling)
                     {
-                        float moveForce = moveBraking;
+                        float moveForce = moveBraking * moveBrake;
                         if (speedIndex != 1)
-                            moveForce = moveAcceleration;
+                            moveForce = moveAcceleration * moveAccel;
 
-                        currentThrottle = Mathf.MoveTowards(currentThrottle, targetThrottle, moveForce * Time.deltaTime);
+                        currentThrottle = Mathf.MoveTowards(currentThrottle, targetThrottle * moveSpeed, moveForce * Time.deltaTime);
                     }
                     else
-                        currentThrottle = targetThrottle;
+                        currentThrottle = targetThrottle * moveSpeed;
                 }
 
                 moveVector = (Quaternion.AngleAxis(Yaw, Vector3.up) * Vector3.forward).normalized;
@@ -716,10 +1175,65 @@ public class HorseRidingOverhaul : MonoBehaviour
 
                 anglePitch = Vector3.SignedAngle(playerCamera.transform.forward, playerObject.transform.forward, playerObject.transform.right);
 
+                //Vector3 moveVectorLocal = playerObject.transform.InverseTransformDirection(moveVector * currentThrottle + strafeVector) * speedWalkMod;
                 Vector3 moveVectorLocal = playerObject.transform.InverseTransformDirection(moveVector * currentThrottle + strafeVector);
 
                 InputManager.Instance.ApplyHorizontalForce(moveVectorLocal.x);
                 InputManager.Instance.ApplyVerticalForce(moveVectorLocal.z);
+
+                //get inertia
+                if (inertia)
+                {
+                    float isRunning = GameManager.Instance.PlayerMotor.IsRunning ? 0.2f : 0f;
+                    float throttleDiff = currentThrottle - targetThrottle;
+                    if (throttleDiff < 0)
+                    {
+                        targetInertia = 1 - (0.2f - isRunning * inertiaStrength);
+                        currentInertia = Mathf.Lerp(currentInertia, targetInertia, 3f * inertiaSpeed * Time.deltaTime);
+                    }
+                    else if (throttleDiff > 0)
+                    {
+                        targetInertia = 1 + (0.2f - isRunning * inertiaStrength);
+                        currentInertia = Mathf.Lerp(currentInertia, targetInertia, 3f * inertiaSpeed * Time.deltaTime);
+                    }
+                    else
+                    {
+                        targetInertia = 1 - (isRunning * inertiaStrength);
+                        currentInertia = Mathf.Lerp(currentInertia, targetInertia, 1.5f * inertiaSpeed * Time.deltaTime);
+                    }
+
+                    if (GameManager.Instance.AcrobatMotor.Falling)
+                    {
+                        //move gravity towards value
+                        targetGravityOffset = 5f * inertiaStrength * -playerMotor.MoveDirection.y;
+                    }
+                    else
+                    {
+                        //move gravity towards 0
+                        targetGravityOffset = 0;
+                    }
+                    currentGravityOffset = Mathf.Lerp(currentGravityOffset, targetGravityOffset, 10 * inertiaSpeed * Time.deltaTime);
+                }
+                else
+                {
+                    currentInertia = 1;
+                    currentGravityOffset = 0;
+                }
+
+                //limit horizontal view
+                if (limitYaw)
+                {
+                    if (angleYaw > limitYawAngle || angleYaw < -limitYawAngle)
+                    {
+                        //get MouseLook yaw value relative to moveVector
+                        float yawAtLimit = Vector3.SignedAngle(Vector3.forward, Quaternion.AngleAxis(-limitYawAngle * Mathf.Sign(angleYaw), Vector3.up) * moveVector, Vector3.up);
+                        playerMouseLook.SetFacing(yawAtLimit + currentYaw, playerMouseLook.Pitch);
+                    }
+                }
+
+                //play landing sound
+                if (playerMotor.IsGrounded && !wasGrounded && !(GameManager.Instance.SaveLoadManager.LoadInProgress || GameManager.Instance.StreamingWorld.IsRepositioningPlayer))
+                    StartCoroutine(PlayRidingAudioOneShot(gaitLand, 0.1f));
             }
             else
             {
@@ -730,9 +1244,12 @@ public class HorseRidingOverhaul : MonoBehaviour
                     GameManager.Instance.PlayerMouseLook.PitchMaxLimit = 90f;
                     playerMotor.limitDiagonalSpeed = true;
 
+                    //GameManager.Instance.SpeedChanger.RemoveSpeedMod(speedWalkModUID,false,true);
+                    GameManager.Instance.SpeedChanger.RemoveSpeedMod(modRunSpeedUID,true,true);
+
                     if (customAudio)
                     {
-                        dfAudioSource.AudioSource.PlayOneShot(audioHorseDismount[UnityEngine.Random.Range(0, audioHorseDismount.Length - 1)], 0.25f * DaggerfallUnity.Settings.SoundVolume * customAudioVolume);
+                        dfAudioSource.AudioSource.PlayOneShot(audioHorseDismount[UnityEngine.Random.Range(0, audioHorseDismount.Length)], 0.25f * DaggerfallUnity.Settings.SoundVolume * customAudioVolume);
 
                         if (audioRiding != null)
                             StopRidingAudio();
@@ -808,10 +1325,20 @@ public class HorseRidingOverhaul : MonoBehaviour
                     ridingAudioSource.volume = volumeScale * DaggerfallUnity.Settings.SoundVolume * customAudioVolume;
 
                     //play cart sounds
-                    if (transportManager.TransportMode == TransportModes.Cart && !ridingAudioSource.isPlaying)
+                    if (transportManager.TransportMode == TransportModes.Cart)
                     {
-                        ridingAudioSource.loop = true;
-                        ridingAudioSource.Play();
+                        if (isTravelling)
+                        {
+                            if (ridingAudioSource.isPlaying)
+                            {
+                                ridingAudioSource.Stop();
+                            }
+                        }
+                        else if (!ridingAudioSource.isPlaying)
+                        {
+                            ridingAudioSource.loop = true;
+                            ridingAudioSource.Play();
+                        }
                     }
 
                     //Set gait depending on throttle type and speed
@@ -823,26 +1350,22 @@ public class HorseRidingOverhaul : MonoBehaviour
                     if (transportManager.TransportMode == TransportModes.Cart)
                     {
                         //Carts can't gallop or reverse
-                        if ((throttle == 0 && speedIndex == 3 && !running && !sneaking) ||
-                            (throttle == 1 && currentThrottle >= 1 && !running && !sneaking)) //fast
+                        if (currentThrottle >= 1)
                         {
                             gait = gait3;
                             sprint = false;
                         }
-                        else if ((throttle == 0 && ((speedIndex == 3 && sneaking) || (speedIndex == 2 && !running && !sneaking))) || 
-                            (throttle == 1 && ((currentThrottle >= 1 && sneaking) || (currentThrottle >= 0.5f && !running && !sneaking)))) //fast+sneak or slow
+                        else if (currentThrottle >= 0.5f)
                         {
                             gait = gait2;
                             sprint = false;
                         }
-                        else if ((throttle == 0 && (speedIndex == 2 && sneaking)) ||
-                            (throttle == 1 && currentThrottle >= 0.5f && sneaking)) //slow+sneak
+                        else if (currentThrottle >= 0.25f)
                         {
                             gait = gait1;
                             sprint = false;
                         }
-                        else if ((throttle == 0 && (speedIndex == 1)) ||
-                            (throttle == 1 && currentThrottle == 0f)) //stopped
+                        else
                         {
                             gait = gait1;
                             sprint = false;
@@ -850,32 +1373,27 @@ public class HorseRidingOverhaul : MonoBehaviour
                     }
                     else
                     {
-                        if ((throttle == 0 && (speedIndex == 3 && running)) ||
-                            (throttle == 1 && (currentThrottle >= 1 && running))) //fast+run
+                        if (currentThrottle >= 1 && running)
                         {
                             gait = gait5;
                             sprint = true;
                         }
-                        else if ((throttle == 0 && ((speedIndex == 3 && !running && !sneaking) || (speedIndex == 2 && running))) ||
-                            (throttle == 1 && ((currentThrottle >= 1 && !running && !sneaking) || (currentThrottle >= 0.5f && running)))) //fast or slow+run
+                        else if (currentThrottle >= 1 || (currentThrottle >= 0.5f && running))
                         {
                             gait = gait4;
                             sprint = true;
                         }
-                        else if ((throttle == 0 && ((speedIndex == 3 && sneaking) || (speedIndex == 2 && !running && !sneaking) || (speedIndex == 0 && running))) ||
-                            (throttle == 1 && ((currentThrottle >= 1 && sneaking) || (currentThrottle >= 0.5f && !running && !sneaking) || (currentThrottle < 0 && running)))) //fast+sneak or slow or reverse+run
+                        else if (currentThrottle >= 0.5f || (currentThrottle >= 0.25f && running))
                         {
                             gait = gait3;
                             sprint = false;
                         }
-                        else if ((throttle == 0 && ((speedIndex == 2 && sneaking) || (speedIndex == 0 && !running && !sneaking))) ||
-                            (throttle == 1 && ((currentThrottle >= 0.5f && sneaking) || (currentThrottle < 0 && !running && !sneaking)))) //slow+sneak or reverse
+                        else if (currentThrottle >= 0.25f)
                         {
                             gait = gait2;
                             sprint = false;
                         }
-                        else if ((throttle == 0 && ((speedIndex == 0 && sneaking) || currentYaw != 0 || strafeVector.sqrMagnitude > 0)) ||
-                            (throttle == 1 && ((currentThrottle < 0 && sneaking) || currentYaw != 0 || strafeVector.sqrMagnitude > 0))) //reverse+sneak or turning or strafing
+                        else
                         {
                             gait = gait1;
                             sprint = false;
@@ -933,7 +1451,7 @@ public class HorseRidingOverhaul : MonoBehaviour
             {
                 if (customAudio)
                 {
-                    dfAudioSource.AudioSource.PlayOneShot(audioHorseNoise[UnityEngine.Random.Range(0,audioHorseNoise.Length-1)], 0.25f * DaggerfallUnity.Settings.SoundVolume * customAudioVolume);
+                    dfAudioSource.AudioSource.PlayOneShot(audioHorseNoise[UnityEngine.Random.Range(0,audioHorseNoise.Length)], 0.25f * DaggerfallUnity.Settings.SoundVolume * customAudioVolume);
                     neighTime = Time.time + UnityEngine.Random.Range(2, 40);
                 }
                 else
@@ -944,43 +1462,7 @@ public class HorseRidingOverhaul : MonoBehaviour
             }
         }
 
-        if (inertia)
-        {
-            float isRunning = GameManager.Instance.PlayerMotor.IsRunning ? 0.2f : 0f;
-            float throttleDiff = currentThrottle - targetThrottle;
-            if (throttleDiff < 0)
-            {
-                targetInertia = 1 - (0.2f - isRunning * inertiaStrength);
-                currentInertia = Mathf.Lerp(currentInertia, targetInertia, 3f * inertiaSpeed * Time.deltaTime);
-            }
-            else if (throttleDiff > 0)
-            {
-                targetInertia = 1 + (0.2f - isRunning * inertiaStrength);
-                currentInertia = Mathf.Lerp(currentInertia, targetInertia, 3f * inertiaSpeed * Time.deltaTime);
-            }
-            else
-            {
-                targetInertia = 1 - (isRunning * inertiaStrength);
-                currentInertia = Mathf.Lerp(currentInertia, targetInertia, 1.5f * inertiaSpeed * Time.deltaTime);
-            }
-
-            if (GameManager.Instance.AcrobatMotor.Falling)
-            {
-                //move gravity towards value
-                targetGravityOffset = 5f * inertiaStrength * -playerMotor.MoveDirection.y;
-            }
-            else
-            {
-                //move gravity towards 0
-                targetGravityOffset = 0;
-            }
-            currentGravityOffset = Mathf.Lerp(currentGravityOffset, targetGravityOffset, 10 * inertiaSpeed * Time.deltaTime);
-        }
-        else
-        {
-            currentInertia = 1;
-            currentGravityOffset = 0;
-        }
+        wasGrounded = playerMotor.IsGrounded;
 
         if (currentThrottle != 0)
             lastThrottle = currentThrottle;
@@ -1032,16 +1514,19 @@ public class HorseRidingOverhaul : MonoBehaviour
 
                     float offsetX = ridingTextureScaled.x * (angleYaw / (fov * 0.5f));
 
-                    if (mirror)
+                    //flip horse head if using mouse steering
+                    if (steering == 1)
                     {
-                        //if horse texture is on the right
                         if (offsetX > ridingTextureScaled.x * 0.25f)
+                            mirror = true;
+                        else if (offsetX < ridingTextureScaled.x * -0.25f)
                             mirror = false;
                     }
                     else
                     {
-                        //if horse texture is on the left
-                        if (offsetX < ridingTextureScaled.x * -0.25f)
+                        if (offsetX > ridingTextureScaled.x * 0.25f)
+                            mirror = false;
+                        else if (offsetX < ridingTextureScaled.x * -0.25f)
                             mirror = true;
                     }
 
@@ -1113,13 +1598,121 @@ public class HorseRidingOverhaul : MonoBehaviour
         if (audioRiding != null)
             StopCoroutine(audioRiding);
 
-        /*if (transportManager.TransportMode == TransportModes.Cart && ridingAudioSource.isPlaying)
-        {
-            ridingAudioSource.loop = false;
-            //ridingAudioSource.Play();
-        }*/
-
         audioRiding = null;
+    }
+
+    void TryStartCharge()
+    {
+        if (charging != null || tokenCurrent < 1 || transportManager.TransportMode == TransportModes.Cart)
+        {
+            if (customAudio) //play winded noise
+                dfAudioSource.AudioSource.PlayOneShot(audioHorseWinded[UnityEngine.Random.Range(0, audioHorseWinded.Length)], 0.5f * DaggerfallUnity.Settings.SoundVolume * customAudioVolume);
+
+            return;
+        }
+
+        charging = ChargeCoroutine();
+
+        StartCoroutine(charging);
+    }
+
+    IEnumerator ChargeCoroutine()
+    {
+        tokenCurrent--;
+        float currentTime = 0;
+        float targetTime = tokenDuration;
+
+        while (currentTime < targetTime)
+        {
+            if (throttle == 1)
+                targetThrottle = 1;
+            else
+                speedIndex = speeds.Length - 1;
+
+            GameManager.Instance.SpeedChanger.runningMode = true;
+            tokenTimer = 0;
+            currentTime += Time.deltaTime;
+            yield return new WaitForEndOfFrame();
+        }
+
+        GameManager.Instance.SpeedChanger.runningMode = false;
+
+        charging = null;
+    }
+
+    //Based on Hazelnut's Charging code from R&R Enhanced Riding
+    public void AttemptTrample(GameObject target, DaggerfallEntityBehaviour targetBehaviour, Vector3 direction)
+    {
+        Debug.LogFormat("Attempting to trample a {0}!", targetBehaviour.name);
+
+        if (targetBehaviour.Entity is EnemyEntity)
+        {
+            EnemyEntity hitEnemyEntity = (EnemyEntity)targetBehaviour.Entity;
+            EnemyMotor enemyMotor = target.GetComponent<EnemyMotor>();
+
+            //if target is ally or pacified, do not trample
+            if (trample == 1 && !enemyMotor.IsHostile)
+                return;
+
+            //roll for attack based on half of player's Blunt Weapons and half of Horse skill multiplied by Horse Accuracy mod
+            if (FormulaHelper.CalculateSuccessfulHit(GameManager.Instance.PlayerEntity, hitEnemyEntity,
+                (GameManager.Instance.PlayerEntity.Skills.GetLiveSkillValue(DFCareer.Skills.BluntWeapon)/2+Mathf.RoundToInt(trampleSkill*modTrampleAccuracy)),
+                FormulaHelper.CalculateStruckBodyPart()))
+            {
+                // Play heavy hit sound.
+                EnemySounds enemySounds = target.GetComponent<EnemySounds>();
+                MobileUnit entityMobileUnit = target.GetComponentInChildren<MobileUnit>();
+                Genders gender;
+                if (entityMobileUnit.Summary.Enemy.Gender == MobileGender.Male || hitEnemyEntity.MobileEnemy.ID == (int)MobileTypes.Knight_CityWatch)
+                    gender = Genders.Male;
+                else
+                    gender = Genders.Female;
+                enemySounds.PlayCombatVoice(gender, false, true);
+
+                PlayerEntity playerEntity = GameManager.Instance.PlayerEntity;
+
+                //Calculate damage
+                //Base damage is calculated from half Blunt Weapons skill plus (horse skill multiplied by horse damage modifier)
+                int maxBaseDamage = FormulaHelper.CalculateHandToHandMaxDamage((GameManager.Instance.PlayerEntity.Skills.GetLiveSkillValue(DFCareer.Skills.BluntWeapon)/2)+Mathf.RoundToInt(trampleSkill * modTrampleDamage));
+                int minBaseDamage = FormulaHelper.CalculateHandToHandMinDamage((GameManager.Instance.PlayerEntity.Skills.GetLiveSkillValue(DFCareer.Skills.BluntWeapon)/2)+Mathf.RoundToInt(trampleSkill * modTrampleDamage));
+                int damage = UnityEngine.Random.Range(minBaseDamage, maxBaseDamage + 1);
+
+                //Deal damage to enemy
+                DaggerfallEntityBehaviour playerEntityBehaviour = playerEntity.EntityBehaviour;
+                targetBehaviour.DamageHealthFromSource(playerEntityBehaviour, damage, true, playerMotor.transform.position + (moveVector * 2) + playerMotor.transform.up);
+
+                //Knockback the enemy, scale magnitude with damage of trample
+                enemyMotor.KnockbackSpeed = 500 * damage;
+                Vector3 directionRight = Quaternion.Euler(0, 90f, 0) * direction;
+                Vector3 dirTarget = target.transform.position - playerObject.transform.position;
+                float dot = Vector3.Dot(directionRight.normalized, dirTarget.normalized);
+                enemyMotor.KnockbackDirection = Quaternion.Euler(0, Mathf.Sign(dot) * 60f, 0) * direction;
+
+                //Tally Blunt Weapon Skill
+                playerEntity.TallySkill(DFCareer.Skills.BluntWeapon, 1);
+
+                Debug.LogFormat("Charged down a {0} for {1} damage! Trample damage is {2} to {3}!", targetBehaviour.name, damage, minBaseDamage, maxBaseDamage);
+            }
+            else
+            {
+                //play rear up noise
+                if (customAudio && Time.time - lastCollision > 2)
+                {
+                    dfAudioSource.AudioSource.PlayOneShot(audioHorseCollision[UnityEngine.Random.Range(0, audioHorseCollision.Length)], 0.5f * DaggerfallUnity.Settings.SoundVolume * customAudioVolume);
+                    lastCollision = Time.time;
+                }
+
+                if (hitEnemyEntity.GetWeightInClassicUnits() < 500)
+                {
+                    //Knockback the enemy away from the path of the horse
+                    enemyMotor.KnockbackSpeed = 500;
+                    Vector3 directionRight = Quaternion.Euler(0, 90f, 0) * direction;
+                    Vector3 dirTarget = target.transform.position - playerObject.transform.position;
+                    float dot = Vector3.Dot(directionRight.normalized, dirTarget.normalized);
+                    enemyMotor.KnockbackDirection = Quaternion.Euler(0, Mathf.Sign(dot) * 90f, 0) * direction;
+                }
+            }
+        }
     }
 
     IEnumerator PlayRidingAudio(bool[] gait, float interval)
@@ -1154,5 +1747,50 @@ public class HorseRidingOverhaul : MonoBehaviour
                 }
             }
         }
+    }
+
+    IEnumerator PlayRidingAudioOneShot(bool[] gait, float interval)
+    {
+
+        AudioClip[] pace = audioHorseStepWalk;
+        if (sprint)
+            pace = audioHorseStepSprint;
+
+        /*DaggerfallDateTime.Seasons playerSeason = DaggerfallUnity.Instance.WorldTime.Now.SeasonValue;
+        int playerClimateIndex = GameManager.Instance.PlayerGPS.CurrentClimateIndex;
+
+        if (playerMotor.OnExteriorPath)
+        {
+            if (sprint)
+                pace = audioHorseStepSprintPath;
+            else
+                pace = audioHorseStepWalkPath;
+        }
+        else if (playerSeason == DaggerfallDateTime.Seasons.Winter && !WeatherManager.IsSnowFreeClimate(playerClimateIndex) && !playerMotor.OnExteriorStaticGeometry)
+        {
+            if (sprint)
+                pace = audioHorseStepSprintSnow;
+            else
+                pace = audioHorseStepWalkSnow;
+        }*/
+
+        int i = UnityEngine.Random.Range(0,pace.Length);
+        foreach (bool step in gait)
+        {
+            if (step)
+            {
+
+                dfAudioSource.AudioSource.PlayOneShot(pace[i], 0.25f * DaggerfallUnity.Settings.SoundVolume * customAudioVolume);
+
+                if (i < pace.Length - 1)
+                    i++;
+                else
+                    i = 0;
+            }
+
+            yield return new WaitForSeconds(interval);
+        }
+
+        yield return new WaitForSeconds(interval);
     }
 }
