@@ -151,7 +151,7 @@ public class ShieldWidget : MonoBehaviour
             Instance = this;
 
         if (audioSource == null)
-            audioSource = GameManager.Instance.WeaponManager.ScreenWeapon.gameObject.GetComponent<DaggerfallAudioSource>();
+            audioSource = gameObject.AddComponent<DaggerfallAudioSource>();
 
         if (DaggerfallUI.Instance.CustomScreenRect != null)
             screenRect = DaggerfallUI.Instance.CustomScreenRect.Value;
@@ -723,11 +723,16 @@ public class ShieldWidget : MonoBehaviour
         shieldPositionOffset.y = Mathf.Clamp(shieldPositionOffset.y, screenRect.height - shieldPositionOffset.height, screenRect.height);
 
         if (animated)
-            shieldPositionOffset.x = Mathf.Clamp(shieldPositionOffset.x, -shieldPositionOffset.width, 0);
+        {
+            if (flipped)
+                shieldPositionOffset.x = Mathf.Clamp(shieldPositionOffset.x, screenRect.x + screenRect.width-shieldPositionOffset.width, screenRect.x + screenRect.width);
+            else
+                shieldPositionOffset.x = Mathf.Clamp(shieldPositionOffset.x, -shieldPositionOffset.width, 0);
+        }
 
         if (stepTransforms)
         {
-            float length = stepLength * (screenRect.height / 32);
+            float length = stepLength * (screenRect.height / 64);
             shieldPositionOffset.x = Snapping.Snap(shieldPositionOffset.x, length);
             shieldPositionOffset.y = Snapping.Snap(shieldPositionOffset.y, length);
         }
@@ -772,7 +777,7 @@ public class ShieldWidget : MonoBehaviour
             if (flipped)
             {
                 shieldPositionTarget = new Rect(
-                    screenRect.x + screenRect.width - ((screenRect.width * 0.25f) * offsetX),
+                    screenRect.x + screenRect.width - ((screenRect.width * 0.5f) * offsetX),
                     screenRect.y + screenRect.height - weaponOffsetHeight - ((screenRect.height * 0.25f) * offsetY),
                     shieldTexture.width * scale * weaponScaleX / scaleTextureFactor,
                     shieldTexture.height * scale * weaponScaleY / scaleTextureFactor
@@ -841,11 +846,10 @@ public class ShieldWidget : MonoBehaviour
                     StartCoroutine(animating);
                 }
             }
-
             if (flipped)
             {
                 shieldPositionTarget = new Rect(
-                    screenRect.x + screenRect.width - ((screenRect.width * 0.25f) * offsetX),
+                    screenRect.x + screenRect.width - ((screenRect.width * 0.5f) * offsetX),
                     screenRect.y + screenRect.height - weaponOffsetHeight - ((screenRect.height * 0.25f) * offsetY),
                     shieldTexture.width * scale * weaponScaleX / scaleTextureFactor,
                     shieldTexture.height * scale * weaponScaleY / scaleTextureFactor
