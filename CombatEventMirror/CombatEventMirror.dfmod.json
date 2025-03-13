@@ -1,0 +1,13 @@
+{
+    "ModTitle": "Vanilla Combat Event Mirror",
+    "ModVersion": "1.0",
+    "ModAuthor": "RedRoryOTheGlen",
+    "ContactInfo": "rmufrancisco@gmail.com",
+    "DFUnity_Version": "1.1.1",
+    "ModDescription": "Test mod for mirroring VCEH's combat events",
+    "GUID": "b82f5e4c-83e5-40fd-abc4-c89e209c5bca",
+    "Files": [
+        "Assets/Game/Mods/CombatEventMirror/CombatEventMirror.dfmod.json",
+        "Assets/Game/Mods/CombatEventMirror/Scripts/CombatEventMirror.cs"
+    ]
+}
