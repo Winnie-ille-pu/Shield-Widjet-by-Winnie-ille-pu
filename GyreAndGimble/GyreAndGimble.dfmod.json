@@ -1,6 +1,6 @@
 {
     "ModTitle": "Gyre and Gimble",
-    "ModVersion": "1.0.1",
+    "ModVersion": "1.2",
     "ModAuthor": "RedRoryOTheGlen",
     "ContactInfo": "rmufrancisco@gmail.com",
     "DFUnity_Version": "1.1.1",
@@ -19,5 +19,12 @@
         "Assets/Game/Mods/GyreAndGimble/Textures/1234_0-3.PNG",
         "Assets/Game/Mods/GyreAndGimble/modsettings.json",
         "Assets/Game/Mods/GyreAndGimble/GyreAndGimble.dfmod.json"
+    ],
+    "Dependencies": [
+        {
+            "Name": "vanilla combat event handler",
+            "IsOptional": true,
+            "IsPeer": false
+        }
     ]
 }

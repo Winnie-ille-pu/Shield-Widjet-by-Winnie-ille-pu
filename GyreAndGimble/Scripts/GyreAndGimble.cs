@@ -1,8 +1,10 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using DaggerfallWorkshop;
 using DaggerfallWorkshop.Game;
+using DaggerfallWorkshop.Game.Items;
 using DaggerfallWorkshop.Game.Entity;
 using DaggerfallWorkshop.Game.Utility.ModSupport;
 using DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings;
@@ -12,17 +14,31 @@ public class GyreAndGimble : MonoBehaviour
 {
     Camera eye;
     Transform body;
+    PlayerMotor playerMotor;
     PlayerMouseLook mouseLook;
     HeadBobber headBobber;
+    Camera skyCamera;
+
+    Vector2 cursorPosition;
 
     bool cursorMovement;
-    Vector2 cursorPosition;
+    KeyCode cursorMovementKeyCode = KeyCode.Mouse0;
+    bool cursorMovementPressed;
+
+    Rect cursorMovementRect;
+    Texture2D cursorMovementTexture;
+    Texture2D[] cursorMovementTextures;
+    int frameCurrent;
+
+    bool cursorSoftware;
+    Rect cursorSoftwareRect;
+    Texture2D cursorSoftwareTexture;
+    Vector2 cursorSoftwareSize;
+
     Vector2 viewVector;
     Vector2 moveVector;
     float factorX = 1;
     float factorY = 1;
-    KeyCode cursorMovementKeyCode = KeyCode.Mouse0;
-    bool cursorMovementPressed;
 
     bool freelook;
     bool freelookActive;
@@ -47,11 +63,6 @@ public class GyreAndGimble : MonoBehaviour
     float weaponScaleY;
     float weaponOffsetHeight;
 
-    Rect rect;
-    Texture2D texture;
-    Texture2D[] textures;
-    int frameCurrent;
-
     bool autopitch;
     float autopitchSpeed = 0.5f;
     float autopitchStrength = 0.5f;
@@ -72,9 +83,12 @@ public class GyreAndGimble : MonoBehaviour
     {
 
         eye = GameManager.Instance.MainCamera;
+
         body = GameManager.Instance.PlayerObject.transform;
+        playerMotor = GameManager.Instance.PlayerMotor;
         mouseLook = GameManager.Instance.PlayerMouseLook;
         headBobber = GameManager.Instance.PlayerObject.GetComponent<HeadBobber>();
+        skyCamera = GameManager.Instance.SkyRig.SkyCamera;
         terrainLayerMask |= (1 << LayerMask.NameToLayer("Default"));
 
         mod.LoadSettingsCallback = LoadSettings;
@@ -92,6 +106,7 @@ public class GyreAndGimble : MonoBehaviour
         if (change.HasChanged("Modules"))
         {
             cursorMovement = settings.GetValue<bool>("Modules", "CursorMovement");
+            cursorSoftware = settings.GetValue<bool>("Modules", "SoftwareCursor");
             freelook = settings.GetValue<bool>("Modules", "FreeLook");
             cameraMovement = settings.GetValue<bool>("Modules", "CursorModeCameraControls");
             cameraUnlocked = settings.GetValue<bool>("Modules", "UnlockedVanillaAttackCamera");
@@ -117,7 +132,7 @@ public class GyreAndGimble : MonoBehaviour
 
     void InitializeTextures()
     {
-        textures = new Texture2D[9];
+        cursorMovementTextures = new Texture2D[9];
         int archive = 1234;
         int record = 0;
         int frame = 0;
@@ -125,12 +140,15 @@ public class GyreAndGimble : MonoBehaviour
         {
             Texture2D texture;
             DaggerfallWorkshop.Utility.AssetInjection.TextureReplacement.TryImportTexture(archive, record, frame, out texture);
-            textures[i] = texture;
+            cursorMovementTextures[i] = texture;
             frame++;
         }
 
         frameCurrent = 4;
-        texture = textures[frameCurrent];
+        cursorMovementTexture = cursorMovementTextures[frameCurrent];
+
+        cursorSoftwareTexture = DaggerfallUI.GetTextureFromResources("Cursor2");
+        cursorSoftwareSize = new Vector2(32,32);
 
         UpdateCursor();
     }
@@ -138,27 +156,34 @@ public class GyreAndGimble : MonoBehaviour
     {
         freelookPivot = Instantiate(new GameObject("FreelookPivot")).transform;
         freelookPivot.SetParent(eye.transform.parent);
+        freelookPivot.localPosition = Vector3.zero;
         eye.transform.SetParent(freelookPivot);
     }
     private void OnGUI()
     {
-        if (!GameManager.Instance.PlayerMouseLook.cursorActive)
-            return;
-
-         if (cursorMovement)
+        if (cursorMovement && !(!GameManager.Instance.PlayerMouseLook.cursorActive || GameManager.IsGamePaused || freelookActive || !IsCursorInView()))
         {
+            //Draw movement cursor
             // Do nothing if player has cursor active over large HUD (player is clicking on HUD not clicking to attack)
-            if (GameManager.IsGamePaused || freelookActive || !IsCursorInView())
-                return;
 
             GUI.depth = 0;
 
-            DaggerfallUI.DrawTexture(rect, texture);
+            DaggerfallUI.DrawTexture(cursorMovementRect, cursorMovementTexture);
+        }
+        else if (cursorSoftware && (GameManager.Instance.PlayerMouseLook.cursorActive || GameManager.IsGamePaused) || !IsCursorInView())
+        {
+            //Draw clicky cursor
+            GUI.depth = -1;
+
+            cursorSoftwareRect = new Rect(new Vector2(cursorPosition.x, Screen.height - cursorPosition.y), cursorSoftwareSize);
+            DaggerfallUI.DrawTexture(cursorSoftwareRect, cursorSoftwareTexture);
         }
     }
 
     private void Update()
     {
+        UpdateCursor();
+
         if (!GameManager.Instance.PlayerMouseLook.cursorActive)
         {
             viewVector = new Vector2(mouseLook.Yaw, 0);
@@ -186,7 +211,7 @@ public class GyreAndGimble : MonoBehaviour
             // Do nothing if player has cursor active over large HUD (player is clicking on HUD not clicking to attack)
             if (!GameManager.IsGamePaused)
             {
-                UpdateCursor();
+                UpdateMovementCursor();
 
                 if (InputManager.Instance.GetKeyDown(cursorMovementKeyCode) && IsCursorInView())
                     cursorMovementPressed = true;
@@ -226,6 +251,12 @@ public class GyreAndGimble : MonoBehaviour
 
     private void LateUpdate()
     {
+        if (cursorSoftware && (GameManager.Instance.PlayerMouseLook.cursorActive || GameManager.IsGamePaused) || !IsCursorInView())
+        {
+            //hide regular cursor
+            Cursor.visible = false;
+        }
+
         if (GameManager.Instance.PlayerMouseLook.cursorActive)
         {
             if (cursorMovement && !freelookActive)
@@ -327,7 +358,7 @@ public class GyreAndGimble : MonoBehaviour
                     viewVector.y = 0;
                     mouseLook.SetFacing(mouseLook.Yaw, 0);
                     mouseLook.enabled = true;
-                    headBobber.enabled = true;
+                    headBobber.enabled = DaggerfallUnity.Settings.HeadBobbing;
                     freelookActive = false;
                     freelooked = false;
                     cursorPosition = InputManager.Instance.MousePosition;
@@ -348,7 +379,7 @@ public class GyreAndGimble : MonoBehaviour
                         viewVector.y = 0;
                         mouseLook.SetFacing(mouseLook.Yaw, 0);
                         mouseLook.enabled = true;
-                        headBobber.enabled = true;
+                        headBobber.enabled = DaggerfallUnity.Settings.HeadBobbing;
                         freelookActive = false;
                         freelooked = false;
                         cursorPosition = InputManager.Instance.MousePosition;
@@ -365,11 +396,12 @@ public class GyreAndGimble : MonoBehaviour
                 }
             }
         }
+
     }
 
     void AdjustPitch()
     {
-        if (!GameManager.Instance.PlayerMotor.IsGrounded)
+        if (!playerMotor.IsGrounded)
             return;
 
         float height = GameManager.Instance.PlayerController.height;
@@ -510,7 +542,10 @@ public class GyreAndGimble : MonoBehaviour
 
         weaponScaleX = (float)screenRect.width / (float)nativeScreenWidth;
         weaponScaleY = (float)screenRect.height / (float)nativeScreenHeight;
+    }
 
+    void UpdateMovementCursor()
+    {
         if (cursorPosition.x < Screen.width * 0.33f)
         {
             if (cursorPosition.y < (weaponOffsetHeight * 0.5f) + (screenRect.height * 0.33f))          //BOTTOM LEFT (STRAFE LEFT)
@@ -539,12 +574,12 @@ public class GyreAndGimble : MonoBehaviour
                 frameCurrent = 4;
         }
 
-        texture = textures[frameCurrent];
+        cursorMovementTexture = cursorMovementTextures[frameCurrent];
 
-        float width = texture.width * weaponScaleX;
-        float height = texture.height * weaponScaleY;
+        float width = cursorMovementTexture.width * weaponScaleX;
+        float height = cursorMovementTexture.height * weaponScaleY;
 
-        rect = new Rect(cursorPosition.x - (width*0.5f), Screen.height - cursorPosition.y - (height * 0.5f), width, height);
+        cursorMovementRect = new Rect(cursorPosition.x - (width * 0.5f), Screen.height - cursorPosition.y - (height * 0.5f), width, height);
     }
 
     void CheckCursor()
