@@ -87,6 +87,7 @@ public class TailOfArgonia : MonoBehaviour
     Light sunLight;
     float sunLightScale = 1;
     float moonLightScale = 1;
+    int lightColor;             //0 = sky, 1 = fog
     float lightColorScale = 1;
 
     float ambientLightExteriorDayScale = 1;
@@ -96,6 +97,7 @@ public class TailOfArgonia : MonoBehaviour
     float ambientLightCastleScale = 1;
     float ambientLightDungeonScale = 1;
 
+    bool ambientLightingInitialized = false;
     Color ExteriorNoonAmbientLightDefault = new Color(0.9f, 0.9f, 0.9f);
     Color ExteriorNightAmbientLightDefault = new Color(0.25f, 0.25f, 0.25f);
     Color InteriorAmbientLightDefault = new Color(0.18f, 0.18f, 0.18f);
@@ -111,13 +113,9 @@ public class TailOfArgonia : MonoBehaviour
     float SnowSunlightScaleDefault = 0.45f;
     float WinterSunlightScaleDefault = 0.65f;
 
-    float OvercastShadowStrengthDefault = 0.6f;
-    float RainShadowStrengthDefault = 0.4f;
-    float StormShadowStrengthDefault = 0.4f;
-    float SnowShadowStrengthDefault = 0.25f;
-    float WinterShadowStrengthDefault = 0.8f;
+    Mod DynamicSkies;
 
-    bool hasDynamicSkies;
+
 
     IEnumerator worldUpdateMessage;
 
@@ -171,6 +169,7 @@ public class TailOfArgonia : MonoBehaviour
         {
             sunLightScale = settings.GetValue<float>("ImprovedAmbientLight", "SunLightScale");
             moonLightScale = settings.GetValue<float>("ImprovedAmbientLight", "MoonLightScale");
+            lightColor = settings.GetValue<int>("ImprovedAmbientLight", "LightColor");
             lightColorScale = settings.GetValue<float>("ImprovedAmbientLight", "LightColorScale");
             ambientLightExteriorDayScale = settings.GetValue<float>("ImprovedAmbientLight", "ExteriorDayLightScale");
             ambientLightExteriorNightScale = settings.GetValue<float>("ImprovedAmbientLight", "ExteriorNightLightScale");
@@ -215,10 +214,7 @@ public class TailOfArgonia : MonoBehaviour
 
     private void ModCompatibilityChecking()
     {
-        //Check if Dynamic Skies is installed
-        Mod ds = ModManager.Instance.GetModFromGUID("53a9b8f5-6271-4f74-9b8b-9220dd105a04");
-        if (ds != null)
-            hasDynamicSkies = true;
+        DynamicSkies = ModManager.Instance.GetModFromGUID("53a9b8f5-6271-4f74-9b8b-9220dd105a04");
     }
 
     void Awake()
@@ -278,7 +274,21 @@ public class TailOfArgonia : MonoBehaviour
         if (playerAmbientLight == null)
             return;
 
-        if (setting && !hasDynamicSkies)
+        if (!ambientLightingInitialized)
+        {
+            ambientLightingInitialized = true;
+
+            ExteriorNoonAmbientLightDefault = playerAmbientLight.ExteriorNoonAmbientLight;
+            ExteriorNightAmbientLightDefault = playerAmbientLight.ExteriorNightAmbientLight;
+            InteriorAmbientLightDefault = playerAmbientLight.InteriorAmbientLight;
+            InteriorNightAmbientLightDefault = playerAmbientLight.InteriorNightAmbientLight;
+            InteriorAmbientLight_AmbientOnlyDefault = playerAmbientLight.InteriorAmbientLight_AmbientOnly;
+            InteriorNightAmbientLight_AmbientOnlyDefault = playerAmbientLight.InteriorNightAmbientLight_AmbientOnly;
+            DungeonAmbientLightDefault = playerAmbientLight.DungeonAmbientLight;
+            CastleAmbientLightDefault = playerAmbientLight.CastleAmbientLight;
+        }
+
+        if (setting && DynamicSkies == null)
         {
             playerAmbientLight.enabled = false;
             GameManager.Instance.SunlightManager.IndirectLight.enabled = false;
@@ -520,13 +530,16 @@ public class TailOfArgonia : MonoBehaviour
             }
         }
 
-        if (ambientLighting && sunLight != null && !hasDynamicSkies)
+        if (ambientLighting && sunLight != null && DynamicSkies == null)
         {
             if (GameManager.Instance.IsPlayingGame())
             {
                 Color skyColor = Color.white;
 
-                skyColor = Scale(RenderSettings.fogColor, 1, 1);
+                if (lightColor == 1)
+                    skyColor = RenderSettings.fogColor;
+                else
+                    skyColor = sky.skyColors.west[Mathf.RoundToInt(sky.skyColors.west.Length/2)];
 
                 lastCameraClearColor = Scale(skyColor, 0.5f * lightColorScale, 2 * sunLightScale);
                 if (sunLight.color != lastCameraClearColor)
@@ -541,7 +554,9 @@ public class TailOfArgonia : MonoBehaviour
                     {
                         if (worldTime.Now.IsNight)
                         {
-                            skyColor = sky.skyColors.west[sky.skyColors.west.Length - 1];
+                            //always use sky color at night
+                            //skyColor = sky.skyColors.west[sky.skyColors.west.Length - 1];
+                            skyColor = sky.skyColors.west[Mathf.RoundToInt(sky.skyColors.west.Length / 2)];
                             lastAmbientColor *= Scale(skyColor, 0.5f * lightColorScale, 10f * moonLightScale);
                         }
                         else

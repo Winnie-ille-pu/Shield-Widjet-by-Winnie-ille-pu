@@ -1,0 +1,13 @@
+{
+    "ModTitle": "SkyboxerFix",
+    "ModVersion": "1.0",
+    "ModAuthor": "RedRoryOTheGlen",
+    "ContactInfo": "rmufrancisco@gmail.com",
+    "DFUnity_Version": "1.1.1",
+    "ModDescription": "Fixes issue with Skyboxer by JohnDoom when using FOV higher than 60",
+    "GUID": "bb6e8907-1612-45a9-ba48-6ea793e2ce8d",
+    "Files": [
+        "Assets/Game/Mods/SkyboxerFix/modsettings.json",
+        "Assets/Game/Mods/SkyboxerFix/Scripts/SkyboxerFix.cs"
+    ]
+}

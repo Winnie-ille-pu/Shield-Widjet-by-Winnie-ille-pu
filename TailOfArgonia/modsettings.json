@@ -157,6 +157,26 @@
             "IsAdvanced": false,
             "Keys": [
                 {
+                    "Options": [
+                        "Sky",
+                        "Fog"
+                    ],
+                    "Value": 0,
+                    "Name": "LightColor",
+                    "Description": "Source of the color sample for light tint",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.MultipleChoiceKey"
+                },
+                {
+                    "Min": 0.0,
+                    "Max": 2.0,
+                    "Value": 1.0,
+                    "Name": "LightColorScale",
+                    "Description": "Saturation of the light",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderFloatKey"
+                },
+                {
                     "Min": 0.0,
                     "Max": 2.0,
                     "Value": 1.0,
@@ -170,15 +190,6 @@
                     "Max": 2.0,
                     "Value": 1.0,
                     "Name": "MoonLightScale",
-                    "Description": null,
-                    "$version": "v1",
-                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderFloatKey"
-                },
-                {
-                    "Min": 0.0,
-                    "Max": 2.0,
-                    "Value": 1.0,
-                    "Name": "LightColorScale",
                     "Description": null,
                     "$version": "v1",
                     "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderFloatKey"

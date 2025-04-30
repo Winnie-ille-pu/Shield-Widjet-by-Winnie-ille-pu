@@ -1,0 +1,24 @@
+{
+    "Version": null,
+    "Sections": [
+        {
+            "Name": "Main",
+            "Description": null,
+            "IsAdvanced": false,
+            "Keys": [
+                {
+                    "Options": [
+                        "Start",
+                        "Continuous"
+                    ],
+                    "Value": 0,
+                    "Name": "UpdateMode",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.MultipleChoiceKey"
+                }
+            ],
+            "$version": "v1"
+        }
+    ]
+}
