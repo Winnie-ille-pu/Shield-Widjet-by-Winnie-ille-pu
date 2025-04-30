@@ -16,7 +16,7 @@ public class HandheldTorchesProjectile : MonoBehaviour
     Vector3 dirStart;
 
     float speedStart = 25;
-    float speed = 25;
+    float speedCurrent = 25;
     float gravityDrag;
     float gravityAccel = -9.81f;
     Vector3 currentGravity;
@@ -28,18 +28,19 @@ public class HandheldTorchesProjectile : MonoBehaviour
 
     Renderer renderer;
 
-    public void Initialize(int newTemplateIndex, float newTime, Vector3 pos, Vector3 dir)
+    public void Initialize(int newTemplateIndex, float newTime, Vector3 pos, Vector3 dir, float scale = 1)
     {
         templateIndex = newTemplateIndex;
         time = newTime;
 
-        dirStart = Quaternion.AngleAxis(-15, GameManager.Instance.MainCameraObject.transform.right) * dir;
+        Vector3 dirMid = Quaternion.AngleAxis(-HandheldTorches.Instance.throwAngle + (HandheldTorches.Instance.throwSpread * Random.Range(-1f,1f)), GameManager.Instance.MainCameraObject.transform.right) * dir;
+        dirStart = Quaternion.AngleAxis((HandheldTorches.Instance.throwSpread * Random.Range(-1f,1f)), GameManager.Instance.MainCameraObject.transform.up) * dirMid;
 
         /*dirStart = new Vector3(dir.x,0,dir.z);
         currentGravity = new Vector3(0,dir.y,0);*/
 
-        speedStart = 25 * (GameManager.Instance.PlayerEntity.Stats.LiveStrength / 100f) * HandheldTorches.Instance.throwStrength;
-        speed = speedStart;
+        speedStart = 25 * (GameManager.Instance.PlayerEntity.Stats.LiveStrength / 100f) * HandheldTorches.Instance.throwStrength * scale;
+        speedCurrent = speedStart;
         gravityDrag = 0.05f * HandheldTorches.Instance.throwGravity;
         bounce = HandheldTorches.Instance.throwBounce;
 
@@ -47,16 +48,16 @@ public class HandheldTorchesProjectile : MonoBehaviour
     }
 
     // Update is called once per frame
-    void Update()
+    void FixedUpdate()
     {
         if (!GameManager.IsGamePaused && dirStart != Vector3.zero)
         {
-            currentGravity += Vector3.up * gravityAccel * gravityDrag * Time.deltaTime;
+            currentGravity += Vector3.up * gravityAccel * gravityDrag * Time.fixedDeltaTime;
 
-            Vector3 delta = (dirStart * speed * Time.deltaTime) + currentGravity;
+            Vector3 delta = (dirStart * speedCurrent * Time.fixedDeltaTime) + currentGravity;
 
             Vector3 scale = transform.localScale;
-            scale.x = Mathf.Sin(Time.time*20);
+            scale.x = Mathf.Sin(Time.time*20)/HandheldTorches.Instance.scaleTextureFactor;
 
             transform.localScale = scale;
 
@@ -64,12 +65,28 @@ public class HandheldTorchesProjectile : MonoBehaviour
             RaycastHit hit = new RaycastHit();
             if (Physics.Raycast(ray, out hit, delta.magnitude))
             {
-                DaggerfallEntityBehaviour enemy = hit.collider.gameObject.GetComponent<DaggerfallEntityBehaviour>();
-                //if (HandheldTorches.Instance.hasBloodfall && enemy != null && enemy != GameManager.Instance.PlayerEntityBehaviour && FormulaHelper.CalculateSuccessfulHit(GameManager.Instance.PlayerEntity, enemy.Entity, HandheldTorches.Instance.fireAccuracy, FormulaHelper.CalculateStruckBodyPart()))
-                if (HandheldTorches.Instance.fire && enemy != null && enemy != GameManager.Instance.PlayerEntityBehaviour && FormulaHelper.CalculateSuccessfulHit(GameManager.Instance.PlayerEntity, enemy.Entity, HandheldTorches.Instance.fireAccuracy, FormulaHelper.CalculateStruckBodyPart()))
+                DaggerfallEntityBehaviour entityBehaviour = hit.collider.gameObject.GetComponent<DaggerfallEntityBehaviour>();
+
+                EnemyEntity enemy = null;
+                if (entityBehaviour != null && entityBehaviour != GameManager.Instance.PlayerEntityBehaviour)
                 {
+                    if (entityBehaviour.Entity is EnemyEntity)
+                        enemy = entityBehaviour.Entity as EnemyEntity;
+                }
+
+                if (HandheldTorches.Instance.fire && enemy != null && FormulaHelper.CalculateSuccessfulHit(GameManager.Instance.PlayerEntity, enemy, HandheldTorches.Instance.fireAccuracy, FormulaHelper.CalculateStruckBodyPart()))
+                {
+                    EnemyMotor motor = enemy.EntityBehaviour.GetComponent<EnemyMotor>();
+                    if (motor != null)
+                    {
+                        if (!motor.IsHostile)
+                            GameManager.Instance.MakeEnemiesHostile();
+
+                        motor.MakeEnemyHostileToAttacker(GameManager.Instance.PlayerEntityBehaviour);
+                    }
+
                     //we hit an entity and successfully roll for player accuracy
-                    EntityEffectManager manager = enemy.GetComponent<EntityEffectManager>();
+                    EntityEffectManager manager = enemy.EntityBehaviour.GetComponent<EntityEffectManager>();
                     EffectSettings settings = BaseEntityEffect.DefaultEffectSettings();
                     settings.ChanceBase = HandheldTorches.Instance.fireChance;
                     settings.DurationBase = HandheldTorches.Instance.fireDuration;
@@ -90,8 +107,9 @@ public class HandheldTorchesProjectile : MonoBehaviour
                     HandheldTorches.Instance.audioSourceOneShot.PlayClipAtPoint((int)DaggerfallWorkshop.SoundClips.Ignite, hit.point, 1);
                     Destroy(gameObject);
                 }
-                else if (speed < speedStart * 0.2f)
+                else if (speedCurrent < speedStart * 0.2f)
                 {
+                    //torch has lost too much speed and stopped
                     //spawn torch in hit location and destroy own projectile
                     HandheldTorches.Instance.SpawnLightSource(templateIndex, hit.point, time);
                     if (Time.time - lastAudio > 0.2f)
@@ -107,7 +125,7 @@ public class HandheldTorchesProjectile : MonoBehaviour
                     Vector3 dirNew = Vector3.Reflect(new Vector3(dirStart.x, currentGravity.y, dirStart.z), hit.normal);
                     dirStart = dirNew;
 
-                    speed *= bounce;
+                    speedCurrent *= bounce;
                     currentGravity = Vector3.zero;
                     if (Time.time - lastAudio > 0.2f)
                     {
@@ -115,7 +133,7 @@ public class HandheldTorchesProjectile : MonoBehaviour
                         lastAudio = Time.time;
                     }
                 }
-                transform.position = hit.point+(hit.normal * (renderer.material.mainTexture.height * 0.016f));
+                transform.position = hit.point + ((hit.normal * renderer.material.mainTexture.height * 0.016f) / HandheldTorches.Instance.scaleTextureFactor);
             }
             else
                 transform.position += delta;

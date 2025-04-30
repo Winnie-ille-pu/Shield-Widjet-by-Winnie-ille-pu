@@ -42,10 +42,20 @@ public class HandheldTorches : MonoBehaviour
     bool stowOnSpellcasting;
     bool stowOnClimbing;
     bool stowOnSwimming;
+    bool twoHandedRelaxed;
+    bool lanternRelaxed;
 
     public float throwStrength = 1f;
+    public float throwAngle = 15f;
+    public float throwSpread = 2;
     public float throwGravity = 1f;
     public float throwBounce = 0.5f;
+    public float throwTime = 1;
+    float throwScale = 1;
+    float throwTimer = 0;
+    bool throwDrawTrajectory;
+    LineRenderer lineRenderer;
+    List<Vector3> positions;
 
     public bool fire;
     public int fireAccuracy;
@@ -106,6 +116,10 @@ public class HandheldTorches : MonoBehaviour
         }
     }
 
+    bool hasLightSource;
+    bool hasDroppedOrThrownLight;
+    int lightSourceTemplateIndexLast;
+
     const int nativeScreenWidth = 320;
     const int nativeScreenHeight = 200;
 
@@ -114,11 +128,15 @@ public class HandheldTorches : MonoBehaviour
     bool flippedLast;
 
     public Texture2D currentTexture;
-    public Texture2D[] textures;
+    public List<Texture2D> textures;
 
+    int offsetFrame = 0;
     int currentFrame;
     float animationTime = 0.0625f;
     float animationTimer;
+
+    int animTorchLength;
+    int animLanternLength;
 
     Rect positionCurrent;
     Rect positionTarget;
@@ -141,7 +159,7 @@ public class HandheldTorches : MonoBehaviour
     float offsetX = 2.0f;           //distance from the texture's left edge the center of the screen
     float offsetY = 0.75f;           //distance from the texture's bottom edge to the bottom of the screen
     float scale = 1f;
-    float scaleTextureFactor = 1f;
+    public float scaleTextureFactor = 1f;
     float offsetSpeed = 1000f;
     float offsetSpeedLive
     {
@@ -200,22 +218,6 @@ public class HandheldTorches : MonoBehaviour
         mod.SaveDataInterface = new HandheldTorchesSaveData();
         var go = new GameObject(mod.Title);
         go.AddComponent<HandheldTorches>();
-
-        PlayerEnterExit.OnTransitionInterior += DestroyLightSources_OnTransition;
-        PlayerEnterExit.OnTransitionExterior += DestroyLightSources_OnTransition;
-        PlayerEnterExit.OnTransitionDungeonInterior += DestroyLightSources_OnTransition;
-        PlayerEnterExit.OnTransitionDungeonExterior += DestroyLightSources_OnTransition;
-        PlayerActivate.RegisterCustomActivation(mod, 4000, 0, PickUpLightSource, 3.2f);
-        PlayerActivate.RegisterCustomActivation(mod, 4000, 10, PickUpLightSource, 3.2f);
-        PlayerActivate.RegisterCustomActivation(mod, 4000, 1, PickUpLightSource, 3.2f);
-        PlayerActivate.RegisterCustomActivation(mod, 4000, 11, PickUpLightSource, 3.2f);
-        PlayerActivate.RegisterCustomActivation(mod, 4000, 2, PickUpLightSource, 3.2f);
-        PlayerActivate.RegisterCustomActivation(mod, 4000, 12, PickUpLightSource, 3.2f);
-
-        DaggerfallUI.UIManager.OnWindowChange += OnRestWindowOpen;
-        DaggerfallUI.UIManager.OnWindowChange += OnRestWindowClose;
-
-        SaveLoadManager.OnStartLoad += DestroyLightSources_OnStartLoad;
     }
 
     public static void DestroyLightSources_OnStartLoad(SaveData_v1 saveData)
@@ -298,6 +300,16 @@ public class HandheldTorches : MonoBehaviour
 
         layerMaskPlayer = ~(1 << LayerMask.NameToLayer("Player"));
 
+        //setup trajectory line renderer
+        lineRenderer = gameObject.AddComponent<LineRenderer>();
+        lineRenderer.widthMultiplier = 0.1f;
+        lineRenderer.material = new Material(Shader.Find("Legacy Shaders/Particles/Alpha Blended Premultiply"));
+        Color startColor = new Color(1, 1, 1, 0);
+        Color endColor = new Color(1, 1, 1, 1);
+        lineRenderer.startColor = startColor;
+        lineRenderer.endColor = endColor;
+        lineRenderer.enabled = false;
+
         if (DaggerfallUI.Instance.CustomScreenRect != null)
             screenRect = DaggerfallUI.Instance.CustomScreenRect.Value;
         else
@@ -317,11 +329,46 @@ public class HandheldTorches : MonoBehaviour
 
         RefreshSprite();
 
+        PlayerEnterExit.OnTransitionInterior += DestroyLightSources_OnTransition;
+        PlayerEnterExit.OnTransitionExterior += DestroyLightSources_OnTransition;
+        PlayerEnterExit.OnTransitionDungeonInterior += DestroyLightSources_OnTransition;
+        PlayerEnterExit.OnTransitionDungeonExterior += DestroyLightSources_OnTransition;
+        PlayerActivate.RegisterCustomActivation(mod, 4000, 0, PickUpLightSource, 3.2f);
+        PlayerActivate.RegisterCustomActivation(mod, 4000, 10, PickUpLightSource, 3.2f);
+        PlayerActivate.RegisterCustomActivation(mod, 4000, 1, PickUpLightSource, 3.2f);
+        PlayerActivate.RegisterCustomActivation(mod, 4000, 11, PickUpLightSource, 3.2f);
+        PlayerActivate.RegisterCustomActivation(mod, 4000, 2, PickUpLightSource, 3.2f);
+        PlayerActivate.RegisterCustomActivation(mod, 4000, 12, PickUpLightSource, 3.2f);
+
+        DaggerfallUI.UIManager.OnWindowChange += OnRestWindowOpen;
+        DaggerfallUI.UIManager.OnWindowChange += OnRestWindowClose;
+
+        SaveLoadManager.OnStartLoad += DestroyLightSources_OnStartLoad;
+
         //register custom spell effect
         HandheldTorchesEnemyLight enemyLightTemplateEffect = new HandheldTorchesEnemyLight();
         GameManager.Instance.EntityEffectBroker.RegisterEffectTemplate(enemyLightTemplateEffect);
 
+        mod.MessageReceiver = MessageReceiver;
         mod.IsReady = true;
+    }
+
+    void MessageReceiver(string message, object data, DFModMessageCallback callBack)
+    {
+        switch (message)
+        {
+            case "hasFreeHand":
+                callBack?.Invoke("hasFreeHand", HasFreeHand);
+                break;
+
+            case "getFreeHand":
+                callBack?.Invoke("getFreeHand", GetFreeHand);
+                break;
+
+            default:
+                Debug.LogErrorFormat("{0}: unknown message received ({1}).", this, message);
+                break;
+        }
     }
 
     private void ModCompatibilityChecking()
@@ -341,6 +388,27 @@ public class HandheldTorches : MonoBehaviour
         {
             hasBloodfall = true;
         }
+
+        Mod wt = ModManager.Instance.GetModFromGUID("88e77a95-fca0-4c13-a3b9-55ddf40ee01e");
+        if (wt != null)
+        {
+            ModManager.Instance.SendModMessage(wt.Title, "RegisterCustomTooltip", new System.Tuple<float, Func<RaycastHit, string>>(
+                PlayerActivate.DefaultActivationDistance,
+                (hit) =>
+                {
+                    if (hit.transform.name.Length > 16 && hit.transform.name.Contains("TEXTURE.4000"))
+                    {
+                        if (hit.transform.name.Contains("Index=2"))
+                            return "Holy Candle";
+                        else if (hit.transform.name.Contains("Index=1"))
+                            return "Candle";
+                        else
+                            return "Torch";
+                    }
+                    return null;
+                }
+            ));
+        }
     }
 
     private void LoadSettings(ModSettings settings, ModSettingsChange change)
@@ -356,13 +424,19 @@ public class HandheldTorches : MonoBehaviour
             stowOnSpellcasting = settings.GetValue<bool>("Handling", "StowWhenSpellcasting");
             stowOnClimbing = settings.GetValue<bool>("Handling", "StowWhenClimbing");
             stowOnSwimming = settings.GetValue<bool>("Handling", "StowWhenSwimming");
+            twoHandedRelaxed = settings.GetValue<bool>("Handling", "RelaxedTwoHandedWeapons");
+            lanternRelaxed = settings.GetValue<bool>("Handling", "RelaxedLanterns");
         }
         if (change.HasChanged("Throwing"))
         {
             throwKeyCode = SetKeyFromText(settings.GetString("Throwing", "ThrowTorchInput"));
             throwStrength = settings.GetValue<float>("Throwing", "ThrowStrength");
+            throwAngle = settings.GetValue<float>("Throwing", "ThrowAngleOffset");
+            throwSpread = settings.GetValue<float>("Throwing", "ThrowDispersion");
             throwGravity = settings.GetValue<float>("Throwing", "GravityStrength");
             throwBounce = settings.GetValue<float>("Throwing", "Bounciness");
+            throwScale = settings.GetValue<float>("Throwing", "ThrowScaleSpeed");
+            throwDrawTrajectory = settings.GetValue<bool>("Throwing", "ShowTrajectory");
             fire = settings.GetValue<bool>("Throwing", "Combustion");
             fireAccuracy = settings.GetValue<int>("Throwing", "Accuracy");
             fireDuration = settings.GetValue<int>("Throwing", "Duration");
@@ -412,7 +486,7 @@ public class HandheldTorches : MonoBehaviour
         }
         if (change.HasChanged("Step"))
         {
-            stepLength = settings.GetValue<int>("Step", "Length") * 16;
+            stepLength = settings.GetValue<int>("Step", "Length");
             stepCondition = settings.GetValue<int>("Step", "Condition");
         }
         if (change.HasChanged("Compatibility"))
@@ -425,24 +499,34 @@ public class HandheldTorches : MonoBehaviour
     }
     void InitializeTextures()
     {
-        textures = new Texture2D[4];
+        textures = new List<Texture2D>();
         int archive = 4001;
         int record = 0;
         int frame = 0;
-        for (int i = 0; i < 4; i++)
+        for (int i = 0; i < 99; i++)
         {
+            if (record > 1)
+                break;
+
             Texture2D texture;
             bool valid = DaggerfallWorkshop.Utility.AssetInjection.TextureReplacement.TryImportTexture(archive, record, frame, out texture);
             if (valid)
             {
                 Debug.Log("Handheld Torches - Found a texture! " + archive.ToString() + "_" + record.ToString() + "-" + frame.ToString());
-                textures[i] = texture;
+                textures.Add(texture);
                 frame++;
             } else
             {
                 Debug.Log("Handheld Torches - Didn't find a texture! " + archive.ToString() + "_" + record.ToString() + "-" + frame.ToString());
+
+                if (record == 1)
+                    animLanternLength = frame;
+                else
+                    animTorchLength = frame;
+
                 frame = 0;
                 record++;
+                i--;
             }
         }
         currentTexture = textures[0];
@@ -450,17 +534,15 @@ public class HandheldTorches : MonoBehaviour
 
     private void OnGUI()
     {
-        GUI.depth = 0;
-
-        if (!showSprite || GameManager.IsGamePaused || isInThirdPerson)
+        if (!showSprite || GameManager.IsGamePaused || SaveLoadManager.Instance.LoadInProgress || isInThirdPerson)
             return;
 
-        //if a light source is equipped
-        DaggerfallUnityItem itemLightSource = GameManager.Instance.PlayerEntity.LightSource;
-        if (itemLightSource != null)
+        if (lanternRelaxed && GameManager.Instance.PlayerEntity.LightSource != null && GameManager.Instance.PlayerEntity.LightSource.TemplateIndex == 248 && !HasFreeHand)
+            return;
+
+        if (Event.current.type == EventType.Repaint)
         {
-            if (itemLightSource.TemplateIndex != 247 || !HasFreeHand)
-                return;
+            GUI.depth = 0;
 
             if (tintSprite)
                 DaggerfallUI.DrawTextureWithTexCoords(GetSpriteRect(), currentTexture, curAnimRect, true, GameManager.Instance.WeaponManager.ScreenWeapon.Tint);
@@ -512,13 +594,18 @@ public class HandheldTorches : MonoBehaviour
         {
             if (lightSource != null)
             {
+
                 if (lightSource.TemplateIndex == 247 && !audioSourceLoop.AudioSource.isPlaying)
                     audioSourceLoop.AudioSource.Play();
                 else if (lightSource.TemplateIndex != 247 && audioSourceLoop.AudioSource.isPlaying)
                     audioSourceLoop.AudioSource.Stop();
             }
-            else if (lightSource == null && audioSourceLoop.AudioSource.isPlaying)
-                audioSourceLoop.AudioSource.Stop();
+            else
+            {
+
+                if (lightSource == null && audioSourceLoop.AudioSource.isPlaying)
+                    audioSourceLoop.AudioSource.Stop();
+            }
         } else
         {
             if (audioSourceLoop.AudioSource.isPlaying)
@@ -527,98 +614,148 @@ public class HandheldTorches : MonoBehaviour
 
         if (!GameManager.Instance.WeaponManager.Sheathed)
         {
-            if (!HasFreeHand && lightSource != null && lightSource.TemplateIndex != 248)
-            {
-                if (onStow > 0 && (sheathed || attacking))
-                    DropLightSource(lightSource);
-                else
-                {
-                    if (!sheathed)
-                        DaggerfallUI.Instance.PopupMessage(messageNoFreeHand);
-                    lastLightSource = lightSource;
-                    GameManager.Instance.PlayerEntity.LightSource = null;
-                }
-            }
-            else if (HasFreeHand && lastLightSource != null && sheathed)
-            {
-                GameManager.Instance.PlayerEntity.LightSource = lastLightSource;
-                lastLightSource = null;
-            }
-
             if (sheathed)
+            {
+                //just unsheathed the weapon
                 sheathed = false;
+            }
         }
         else if (GameManager.Instance.WeaponManager.Sheathed)
         {
-            if (!HasFreeHand && lightSource != null && lightSource.TemplateIndex != 248)
-            {
-                if (onStow > 0)
-                    DropLightSource(lightSource);
-                else
-                {
-                    lastLightSource = lightSource;
-                    GameManager.Instance.PlayerEntity.LightSource = null;
-                }
-            }
-            else if (HasFreeHand && lastLightSource != null && !sheathed)
-            {
-                GameManager.Instance.PlayerEntity.LightSource = lastLightSource;
-                lastLightSource = null;
-            }
-
             if (!sheathed)
+            {
+                //just sheathed the weapon
                 sheathed = true;
+            }
+        }
+
+        //check if no hands are free while a light source is equipped
+        if (!HasFreeHand && lightSource != null && lightSource.TemplateIndex != 248)
+        {
+            if (onStow > 0)
+                DropLightSource(lightSource);
+            else
+            {
+                lastLightSource = lightSource;
+                GameManager.Instance.PlayerEntity.LightSource = null;
+            }
+        }
+        else if (!HasFreeHand && lightSource != null && lightSource.TemplateIndex == 248 && !lanternRelaxed)
+        {
+            if (!sheathed)
+                DaggerfallUI.Instance.PopupMessage(messageNoFreeHand);
+            lastLightSource = lightSource;
+            GameManager.Instance.PlayerEntity.LightSource = null;
+        }
+        else if (HasFreeHand && lastLightSource != null)
+        {
+            //check if last light source is not null and re-equip it when possible
+            GameManager.Instance.PlayerEntity.LightSource = lastLightSource;
+            lastLightSource = null;
         }
 
         //animate sprite
         if (showSprite)
         {
-            if (animationTimer > animationTime)
+            if (lightSource != null)
             {
-                animationTimer = 0;
-
-                if (currentFrame < 3)
-                    currentFrame++;
+                if (lightSource.TemplateIndex == 248)   //is a lantern
+                    offsetFrame = 4;
+                else if (lightSource.TemplateIndex == 247) //is a torch
+                    offsetFrame = 0;
                 else
-                    currentFrame = 0;
-
-                currentTexture = textures[currentFrame];
+                    offsetFrame = -1;
             }
-            else
-            {
-                animationTimer += Time.deltaTime;
+
+            if (offsetFrame != -1) {
+                if (animationTimer > animationTime)
+                {
+                    animationTimer = 0;
+
+                    int length = animTorchLength;
+                    if (offsetFrame == 4)
+                        length = animLanternLength;
+
+                    if (currentFrame < length-1)
+                        currentFrame++;
+                    else
+                        currentFrame = 0;
+
+                    currentTexture = textures[offsetFrame + currentFrame];
+                }
+                else
+                {
+                    animationTimer += Time.deltaTime;
+                }
             }
         }
+
+        bool refreshSprite = false;
+        if (lightSource != null)
+        {
+            if (!hasLightSource)
+            {
+                //EVENT: has ignited a light source
+                hasLightSource = true;
+
+                //Refresh sprite if light source is a torch or lantern
+                if (lightSource.TemplateIndex == 247 || lightSource.TemplateIndex == 248)
+                    refreshSprite = true;
+            }
+
+            if (lightSourceTemplateIndexLast != lightSource.TemplateIndex)
+            {
+                //EVENT: has switched light sources
+                lightSourceTemplateIndexLast = lightSource.TemplateIndex;
+
+                //Refresh sprite if light source is a torch or lantern
+                if (lightSource.TemplateIndex == 247 || lightSource.TemplateIndex == 248)
+                    refreshSprite = true;
+            }
+        }
+        else
+        {
+            if (hasLightSource)
+            {
+                //EVENT: has doused or discarded a light source
+                hasLightSource = false;
+            }
+
+            lightSourceTemplateIndexLast = -1;
+        }
+
+        if (refreshSprite)
+            RefreshSprite();
 
         //Toggle lightsource
         if (InputManager.Instance.GetKeyDown(toggleLightKeyCode))
         {
-            if (!sheathed)
+            if (lanternRelaxed)
+            {
+                if (HasFreeHand || GameManager.Instance.PlayerEntity.Items.Contains(ItemGroups.UselessItems2, 248))
+                    ToggleLightSourceAction();
+                else
+                    DaggerfallUI.Instance.PopupMessage(messageNoFreeHand);
+            }
+            else
             {
                 if (HasFreeHand)
                     ToggleLightSourceAction();
                 else
                     DaggerfallUI.Instance.PopupMessage(messageNoFreeHand);
             }
-            else
-                ToggleLightSourceAction();
         }
 
         //Manually drop a lightsource
         if (InputManager.Instance.GetKeyDown(dropKeyCode))
         {
-            if (!sheathed)
-            {
-                if (HasFreeHand)
-                    DropLightSourceAction(lightSource);
-                else
-                    DaggerfallUI.Instance.PopupMessage(messageNoFreeHand);
-            }
-            else
+            if (HasFreeHand)
                 DropLightSourceAction(lightSource);
+            else
+                DaggerfallUI.Instance.PopupMessage(messageNoFreeHand);
         }
 
-        //Throw a lightsource
+        /*//Throw a lightsource
         if (InputManager.Instance.GetKeyDown(throwKeyCode))
         {
             if (!sheathed)
@@ -630,9 +767,58 @@ public class HandheldTorches : MonoBehaviour
             }
             else
                 ThrowLightSourceAction(lightSource);
+        }*/
+
+        //Throw a lightsource, scale strength by time
+        if (InputManager.Instance.GetKeyDown(throwKeyCode))
+        {
+            if (GameManager.Instance.PlayerEntity.Items.Contains(ItemGroups.UselessItems2, (int)UselessItems2.Torch))
+            {
+                if (!HasFreeHand)
+                    DaggerfallUI.Instance.PopupMessage(messageNoFreeHand);
+                else
+                {
+                    if (lightSource != null && ((lanternRelaxed && lightSource.TemplateIndex != (int)UselessItems2.Lantern) || !lanternRelaxed))
+                    {
+                        GameManager.Instance.PlayerEntity.LightSource = null;
+                    }
+                }
+            }
+            else
+                DaggerfallUI.Instance.PopupMessage(Instance.messageThrowTorchless);
         }
 
-        //update light sources
+        if (InputManager.Instance.GetKey(throwKeyCode))
+        {
+            if (GameManager.Instance.PlayerEntity.Items.Contains(ItemGroups.UselessItems2, (int)UselessItems2.Torch))
+            {
+                if (HasFreeHand)
+                {
+                    throwTimer += Time.deltaTime * throwScale;
+
+                    if (throwDrawTrajectory)
+                        DrawTrajectory();
+                }
+            }
+        }
+
+        if (InputManager.Instance.GetKeyUp(throwKeyCode))
+        {
+            if (HasFreeHand)
+            {
+                float throwScale = Mathf.Clamp(throwTimer / throwTime, 0.25f, 2f);
+                ThrowLightSourceAction(lightSource, throwScale);
+            }
+            else
+                DaggerfallUI.Instance.PopupMessage(messageNoFreeHand);
+
+            if (lineRenderer.enabled)
+                lineRenderer.enabled = false;
+
+            throwTimer = 0;
+        }
+
+            //update light sources
         if (billboardsObject.Count > 0 || billboardsTime.Count > 0)
         {
             CleanUpLightSources();
@@ -672,8 +858,63 @@ public class HandheldTorches : MonoBehaviour
         }
     }
 
+    void DrawTrajectory()
+    {
+        if (!lineRenderer.enabled)
+            lineRenderer.enabled = true;
+
+        positions = new List<Vector3>();
+
+        //get start
+        Vector3 start = GameManager.Instance.PlayerObject.transform.position;
+
+        int freeHand = GetFreeHand;
+        if (freeHand == 2)
+            start += GameManager.Instance.MainCameraObject.transform.right * 0.35f;
+        else
+            start += GameManager.Instance.MainCameraObject.transform.right * -0.35f;
+
+        positions.Add(start);
+
+        Vector3 dir = Quaternion.AngleAxis(-throwAngle, GameManager.Instance.MainCameraObject.transform.right) * GameManager.Instance.MainCameraObject.transform.forward;
+        Vector3 startStep = dir * 25 * (GameManager.Instance.PlayerEntity.Stats.LiveStrength / 100f) * throwStrength * Mathf.Clamp(throwTimer / throwTime, 0.25f, 2f);
+
+        //get all positions
+        bool stopped = false;
+        Vector3 currentPos = start;
+        Vector3 currentGravity = Vector3.zero;
+        Vector3 currentStep = startStep;
+        Ray ray = new Ray(currentPos, currentStep.normalized);
+        RaycastHit hit = new RaycastHit();
+        while (!stopped && positions.Count < 300)
+        {
+            startStep = dir * 25 * (GameManager.Instance.PlayerEntity.Stats.LiveStrength / 100f) * throwStrength * Mathf.Clamp(throwTimer / throwTime, 0.25f, 2f);
+
+            currentGravity += Vector3.down * (9.8f * (throwGravity * 0.05f));
+            currentStep = (startStep + currentGravity) * Time.fixedDeltaTime;
+
+            ray = new Ray(currentPos, currentStep.normalized);
+
+            if (Physics.Raycast(ray, out hit, currentStep.magnitude, layerMaskPlayer))
+            {
+                stopped = true;
+                positions.Add(hit.point);
+            }
+            else
+            {
+                currentPos += currentStep;
+                positions.Add(currentPos);
+            }
+        }
+        lineRenderer.positionCount = positions.Count;
+        lineRenderer.SetPositions(positions.ToArray());
+    }
+
     private void LateUpdate()
     {
+        //if off-hand is shield
+        DaggerfallUnityItem itemLightSource = GameManager.Instance.PlayerEntity.LightSource;
+
         Position = Vector2.zero;
         Offset = Vector2.zero;
         Scale = Vector2.zero;
@@ -681,16 +922,27 @@ public class HandheldTorches : MonoBehaviour
         attacking = GameManager.Instance.WeaponManager.ScreenWeapon.IsAttacking();
 
         if (GameManager.Instance.PlayerSpellCasting.IsPlayingAnim || GameManager.Instance.PlayerEffectManager.HasReadySpell)
-            spellcasting = true;
+        {
+            //just started spellcasting
+            if (!spellcasting)
+            {
+                spellcasting = true;
+            }
+        }
         else
-            spellcasting = false;
+        {
+            //just stopped spellcasting
+            if (spellcasting)
+            {
+                spellcasting = false;
+            }
+        }
 
         climbing = GameManager.Instance.PlayerMotor.IsClimbing;
         swimming = GameManager.Instance.PlayerMotor.IsSwimming;
 
-        //if off-hand is shield
-        DaggerfallUnityItem itemLightSource = GameManager.Instance.PlayerEntity.LightSource;
-        if (itemLightSource != null)
+        //control sprite
+        if (itemLightSource != null && offsetFrame >= 0)
         {
             /*if (itemLightSource.TemplateIndex != 247)
                 return;*/
@@ -847,12 +1099,38 @@ public class HandheldTorches : MonoBehaviour
                 }
             }
         }
+        else
+        {
+            SetSheathe();
+            if (hasDroppedOrThrownLight)
+            {
+                positionCurrent = positionTarget;
+                hasDroppedOrThrownLight = false;
+            }
+            else
+            {
+                Vector3 current = new Vector3(positionCurrent.x, positionCurrent.y, 0);
+                Vector3 target = new Vector3(positionTarget.x, positionTarget.y, 0);
+                current = Vector3.MoveTowards(current, target, Time.deltaTime * offsetSpeedLive * 3);
+                positionCurrent = new Rect(current.x, current.y, positionTarget.width, positionTarget.height);
+            }
+        }
     }
 
     public void RefreshSprite()
     {
         if (currentTexture == null)
             return;
+
+        if (GameManager.Instance.PlayerEntity.LightSource != null)
+        {
+            if (GameManager.Instance.PlayerEntity.LightSource.TemplateIndex == 248)
+                offsetFrame = 4;
+            else
+                offsetFrame = 0;
+
+            currentTexture = textures[currentFrame + offsetFrame];
+        }
 
         if (GameManager.Instance.WeaponManager.ScreenWeapon.IsAttacking())
             SetAttack();
@@ -916,6 +1194,34 @@ public class HandheldTorches : MonoBehaviour
         }
     }
 
+    public void SetSheathe()
+    {
+        weaponScaleX = (float)screenRect.width / (float)nativeScreenWidth;
+        if (lockAspectRatio)
+            weaponScaleY = weaponScaleX;
+        else
+            weaponScaleY = (float)screenRect.height / (float)nativeScreenHeight;
+
+        if (flipped)
+        {
+            positionTarget = new Rect(
+                screenRect.x + screenRect.width,
+                screenRect.y + screenRect.height - weaponOffsetHeight + currentTexture.height * scale * weaponScaleY / scaleTextureFactor,
+                currentTexture.width * scale * weaponScaleX / scaleTextureFactor,
+                currentTexture.height * scale * weaponScaleY / scaleTextureFactor
+                );
+        }
+        else
+        {
+            positionTarget = new Rect(
+                screenRect.x,
+                screenRect.y + screenRect.height - weaponOffsetHeight + currentTexture.height * scale * weaponScaleY / scaleTextureFactor,
+                currentTexture.width * scale * weaponScaleX / scaleTextureFactor,
+                currentTexture.height * scale * weaponScaleY / scaleTextureFactor
+                );
+        }
+    }
+
 
     public void UpdateFreeHand()
     {
@@ -954,7 +1260,12 @@ public class HandheldTorches : MonoBehaviour
                 handRight = false;
                 if (ItemEquipTable.GetItemHands(itemRightHand) == ItemHands.Both) //if right hand item is two-handed, occupy the other hand even if free
                 {
-                    if (GameManager.Instance.ItemHelper.ConvertItemToAPIWeaponType(itemRightHand) == WeaponTypes.Bow || attacking)
+                    if (twoHandedRelaxed)
+                    {
+                        if (GameManager.Instance.ItemHelper.ConvertItemToAPIWeaponType(itemRightHand) == WeaponTypes.Bow || attacking)
+                            handLeft = false;
+                    }
+                    else
                         handLeft = false;
                 }
             }
@@ -993,6 +1304,8 @@ public class HandheldTorches : MonoBehaviour
 
             if (!handLeft && handRight)
                 flippedCurrent = !flippedCurrent;
+            else if (!handLeft && !handRight)
+                flippedCurrent = flippedLast;
 
             if (flippedCurrent != flippedLast)
             {
@@ -1031,7 +1344,7 @@ public class HandheldTorches : MonoBehaviour
 
     void DropLightSource(DaggerfallUnityItem item)
     {
-        Vector3 positionCurrent;
+        Vector3 pos;
         float offset = 0;
         /*if (item.ItemTemplate.index == 247) //is torch
             offset = 0.45f;
@@ -1045,22 +1358,22 @@ public class HandheldTorches : MonoBehaviour
         RaycastHit hit = new RaycastHit();
         if (Physics.Raycast(ray1, out hit, 1.45f, layerMaskPlayer))
         {
-            positionCurrent = hit.point - (GameManager.Instance.PlayerObject.transform.forward * offset);
+            pos = hit.point - (GameManager.Instance.PlayerObject.transform.forward * offset);
         }
         else
-            positionCurrent = ray1.origin + ray1.direction;
+            pos = ray1.origin + ray1.direction;
 
         //get lower bounds
-        Ray ray2 = new Ray(positionCurrent, Vector3.down);
+        Ray ray2 = new Ray(pos, Vector3.down);
         if (Physics.Raycast(ray2, out hit, 145f, layerMaskPlayer))
         {
-            positionCurrent = hit.point + (Vector3.up * offset);
+            pos = hit.point + (Vector3.up * offset);
         }
         else
-            positionCurrent = ray2.origin + ray2.direction;
+            pos = ray2.origin + ray2.direction;
 
         //Spawn a torch given the player's position and the torch's condition
-        SpawnLightSource(item.ItemTemplate.index, positionCurrent, item.currentCondition * 20f);
+        SpawnLightSource(item.ItemTemplate.index, pos, item.currentCondition * 20f);
 
         //remove from inventory
         if (item == GameManager.Instance.PlayerEntity.LightSource)
@@ -1069,16 +1382,18 @@ public class HandheldTorches : MonoBehaviour
 
         DaggerfallUI.Instance.PopupMessage(Instance.messageDrop + item.GetMacroDataSource().Condition().ToLower() + " " + item.LongName.ToLower());
 
-        Instance.audioSourceOneShot.PlayClipAtPoint(380, positionCurrent, 1);
+        Instance.audioSourceOneShot.PlayClipAtPoint(380, pos, 1);
+
+        hasDroppedOrThrownLight = true;
     }
 
-    void ThrowLightSource(DaggerfallUnityItem item)
+    void ThrowLightSource(DaggerfallUnityItem item, float scale = 1)
     {
         Vector3 pos = GameManager.Instance.PlayerObject.transform.position;
         Vector3 dir = GameManager.Instance.MainCameraObject.transform.forward;
 
         //Spawn a torch given the player's position and the torch's condition
-        SpawnLightSourceProjectile(item.ItemTemplate.index, item.currentCondition * 20f, pos, dir);
+        SpawnLightSourceProjectile(item.ItemTemplate.index, item.currentCondition * 20f, pos, dir, scale);
 
         //remove from inventory
         if (item == GameManager.Instance.PlayerEntity.LightSource)
@@ -1089,18 +1404,20 @@ public class HandheldTorches : MonoBehaviour
         DaggerfallUI.Instance.PopupMessage(Instance.messageThrow + item.GetMacroDataSource().Condition().ToLower() + " " + item.LongName.ToLower());
 
         //Instance.audioSourceOneShot.PlayClipAtPoint(380, positionCurrent, 1);
+
+        hasDroppedOrThrownLight = true;
     }
 
-    void ThrowLightSourceAction(DaggerfallUnityItem item)
+    void ThrowLightSourceAction(DaggerfallUnityItem item, float scale = 1)
     {
         if (item != null && item.TemplateIndex == 247)
-            ThrowLightSource(item);
+            ThrowLightSource(item, scale);
         else
         {
             if (GameManager.Instance.PlayerEntity.Items.Contains(ItemGroups.UselessItems2, (int)UselessItems2.Torch))
             {
                 //Drop first torch
-                ThrowLightSource(GameManager.Instance.PlayerEntity.Items.GetItem(ItemGroups.UselessItems2, (int)UselessItems2.Torch));
+                ThrowLightSource(GameManager.Instance.PlayerEntity.Items.GetItem(ItemGroups.UselessItems2, (int)UselessItems2.Torch), scale);
             }
             else
                 DaggerfallUI.Instance.PopupMessage(Instance.messageThrowTorchless);
@@ -1183,6 +1500,7 @@ public class HandheldTorches : MonoBehaviour
                     //we ignited a light
                     audioSourceOneShot.PlayOneShot((int)SoundClips.Ignite, 0, 0.5f);
                     DaggerfallUI.Instance.PopupMessage(Instance.messageIgnite + GameManager.Instance.PlayerEntity.LightSource.GetMacroDataSource().Condition().ToLower() + " " + GameManager.Instance.PlayerEntity.LightSource.LongName.ToLower());
+                    RefreshSprite();
                 }
             }
         }
@@ -1199,21 +1517,32 @@ public class HandheldTorches : MonoBehaviour
         GameObject billboardObject = null;
         //DaggerfallUnityItem item = ItemHelper.GetItem;
         if (itemTemplateIndex == 247) //is torch
-            billboardObject = GameObjectHelper.CreateDaggerfallBillboardGameObject(4000, 0+indexOffset, null);
+        {
+            billboardObject = GameObjectHelper.CreateDaggerfallBillboardGameObject(4000, 0 + indexOffset, null);
+            //billboardObject.name = "HandheldTorches - Torch";
+        }
         else if (itemTemplateIndex == 253) //is candle
-            billboardObject = GameObjectHelper.CreateDaggerfallBillboardGameObject(4000, 1+indexOffset, null);
+        {
+            billboardObject = GameObjectHelper.CreateDaggerfallBillboardGameObject(4000, 1 + indexOffset, null);
+            //billboardObject.name = "HandheldTorches - Candle";
+        }
         else if (itemTemplateIndex == 269) //is holy candle
-            billboardObject = GameObjectHelper.CreateDaggerfallBillboardGameObject(4000, 2+indexOffset, null);
+        {
+            billboardObject = GameObjectHelper.CreateDaggerfallBillboardGameObject(4000, 2 + indexOffset, null);
+            //billboardObject.name = "HandheldTorches - Holy Candle";
+        }
         billboardObject.transform.position = position;
 
         //offset the object billboard upwards
         Renderer renderer = billboardObject.GetComponent<Renderer>();
-        billboardObject.transform.position += Vector3.up * (renderer.material.mainTexture.height*0.0125f);
+        billboardObject.transform.position += Vector3.up * (renderer.material.mainTexture.height*0.0125f)/scaleTextureFactor;
 
         if (UnityEngine.Random.value > 0.5f)
             billboardObject.transform.localScale = new Vector3(-billboardObject.transform.localScale.x, billboardObject.transform.localScale.y, billboardObject.transform.localScale.z);
 
-        billboardObject.layer = 2;
+        //set collider layer to Ignore Raycast for TOB and WW
+        billboardObject.layer = LayerMask.NameToLayer("Ignore Raycast");
+
         billboardsObject.Add(billboardObject);
 
         //set condition
@@ -1248,20 +1577,30 @@ public class HandheldTorches : MonoBehaviour
                 audioSource.SetSound(SoundClips.Burning, AudioPresets.LoopIfPlayerNear);
             }
         }
+
+        //if outside, track the torch as a loose object
+        if (!GameManager.Instance.PlayerEnterExit.IsPlayerInside)
+            GameManager.Instance.StreamingWorld.TrackLooseObject(billboardObject, false, -1, -1, true);
     }
 
-    public void SpawnLightSourceProjectile(int itemTemplateIndex, float time, Vector3 pos, Vector3 dir)
+    public void SpawnLightSourceProjectile(int itemTemplateIndex, float time, Vector3 pos, Vector3 dir, float scale = 1)
     {
         //check if spawn point is below water level
         int indexOffset = 0;
         if (GameManager.Instance.PlayerEnterExit.IsPlayerInsideDungeon && GameManager.Instance.PlayerEnterExit.blockWaterLevel != 10000 && pos.y + (50 * MeshReader.GlobalScale) < GameManager.Instance.PlayerEnterExit.blockWaterLevel * -1 * MeshReader.GlobalScale)
             indexOffset = 10;
 
+        int freeHand = GetFreeHand;
+        if (freeHand == 2)
+            pos += GameManager.Instance.MainCameraObject.transform.right * 0.35f;
+        else
+            pos += GameManager.Instance.MainCameraObject.transform.right * -0.35f;
+
         //spawn billboard object
         GameObject billboardObject = null;
         billboardObject = GameObjectHelper.CreateDaggerfallBillboardGameObject(4000, 0 + indexOffset, null);
         billboardObject.transform.position = pos;
-        billboardObject.layer = 2;
+        billboardObject.layer = LayerMask.NameToLayer("Ignore Raycast");
 
         //add light and audio if not doused
         if (indexOffset == 0)
@@ -1291,11 +1630,12 @@ public class HandheldTorches : MonoBehaviour
         }
 
         HandheldTorchesProjectile projectile = billboardObject.AddComponent<HandheldTorchesProjectile>();
-        projectile.Initialize(itemTemplateIndex,time,pos,dir);
+        projectile.Initialize(itemTemplateIndex,time,pos,dir,scale);
     }
 
     public static void PickUpLightSource(RaycastHit hit)
     {
+        Debug.Log("Attempting to pick up a light source!");
         if (GameManager.Instance.PlayerActivate.CurrentMode == PlayerActivateModes.Grab || GameManager.Instance.PlayerActivate.CurrentMode == PlayerActivateModes.Steal)
         {
             for (int i = 0; i < Instance.billboardsObject.Count; i++)
@@ -1407,7 +1747,7 @@ public class HandheldTorches : MonoBehaviour
         else
         {
             Debug.Log("Detected an invalid key code. Setting to default.");
-            return KeyCode.Tab;
+            return KeyCode.None;
         }
     }
 

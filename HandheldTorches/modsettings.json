@@ -9,7 +9,7 @@
                 {
                     "Value": "F",
                     "Name": "ToggleLightInput",
-                    "Description": "Button used to manually drop a light source",
+                    "Description": "Button used to quickly ignite or douse your light source",
                     "$version": "v1",
                     "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.TextKey"
                 },
@@ -63,6 +63,20 @@
                     "Description": null,
                     "$version": "v1",
                     "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.ToggleKey"
+                },
+                {
+                    "Value": true,
+                    "Name": "RelaxedTwoHandedWeapons",
+                    "Description": "Two-handed weapons will only occupy your off-hand when attacking",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.ToggleKey"
+                },
+                {
+                    "Value": false,
+                    "Name": "RelaxedLanterns",
+                    "Description": "If enabled, will not stow lanterns when both hands are occupied",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.ToggleKey"
                 }
             ],
             "$version": "v1"
@@ -81,7 +95,7 @@
                 },
                 {
                     "Min": 0.0,
-                    "Max": 5.0,
+                    "Max": 10.0,
                     "Value": 1.0,
                     "Name": "ThrowStrength",
                     "Description": null,
@@ -90,12 +104,46 @@
                 },
                 {
                     "Min": 0.0,
-                    "Max": 2.0,
+                    "Max": 10.0,
                     "Value": 1.0,
                     "Name": "GravityStrength",
                     "Description": null,
                     "$version": "v1",
                     "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderFloatKey"
+                },
+                {
+                    "Min": 0.0,
+                    "Max": 45.0,
+                    "Value": 15.0,
+                    "Name": "ThrowAngleOffset",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderFloatKey"
+                },
+                {
+                    "Min": 0.0,
+                    "Max": 3.0,
+                    "Value": 1.0,
+                    "Name": "ThrowDispersion",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderFloatKey"
+                },
+                {
+                    "Min": 0.0,
+                    "Max": 10.0,
+                    "Value": 1.0,
+                    "Name": "ThrowScaleSpeed",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderFloatKey"
+                },
+                {
+                    "Value": true,
+                    "Name": "ShowTrajectory",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.ToggleKey"
                 },
                 {
                     "Min": 0.0,
