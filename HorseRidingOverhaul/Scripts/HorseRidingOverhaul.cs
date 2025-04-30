@@ -5,8 +5,10 @@ using DaggerfallConnect;
 using DaggerfallWorkshop;
 using DaggerfallWorkshop.Utility;
 using DaggerfallWorkshop.Game;
+using DaggerfallWorkshop.Game.Items;
 using DaggerfallWorkshop.Game.Entity;
 using DaggerfallWorkshop.Game.Formulas;
+using DaggerfallWorkshop.Game.Utility;
 using DaggerfallWorkshop.Game.Utility.ModSupport;
 using DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings;
 using DaggerfallWorkshop.Game.Serialization;
@@ -65,8 +67,8 @@ public class HorseRidingOverhaul : MonoBehaviour
     public Rect screenRect;
     Rect horseRect;
 
-    ImageData ridingTexture;
-    ImageData[] ridingTexures = new ImageData[4];
+    Texture2D ridingTexture;
+    Texture2D[] ridingTextures = new Texture2D[4];
     float lastFrameTime = 0;
     int frameIndex = 0;
     public Color Tint { get; set; } = Color.white;
@@ -98,9 +100,9 @@ public class HorseRidingOverhaul : MonoBehaviour
     AudioClip[] audioHorseStepSprint;
     AudioClip[] audioHorseStepSprintPath;
     AudioClip[] audioHorseStepSprintSnow;
-    AudioClip[] audioHorseNoise;
     AudioClip[] audioHorseMount;
     AudioClip[] audioHorseDismount;
+    AudioClip[] audioHorseNoise;
     AudioClip[] audioHorseCollision;
     AudioClip[] audioHorseWinded;
     public bool[] gait1 = new bool[] { false, false, false, false, true };
@@ -111,6 +113,10 @@ public class HorseRidingOverhaul : MonoBehaviour
     public bool[] currentGait;
     public bool[] gaitLand = new bool[] { true, true };
     bool sprint;
+
+    AudioClip[] audioCamelNoise;
+    AudioClip[] audioCamelCollision;
+    AudioClip[] audioCamelWinded;
 
     float lastCollision;
 
@@ -206,9 +212,24 @@ public class HorseRidingOverhaul : MonoBehaviour
     float inertiaSpeed = 1;
     float inertiaStrength = 1;
 
+    float TextureScaleFactor = 1;
+
+    //visual
+    int rideIndex = 0;
+    int variantIndex = 0;
+    int camelArchive = 10002;
+
+    //override
+    int rideIndexMod = -1;
+    int variantIndexMod = -1;
+
     //trampling
     public int trample;    //0 = none, 1 = enemies only, 2 = all entities
     public int trampleSkill = 20;
+    public DaggerfallUnityItem trampleWeapon;
+
+    //VCEH mirror
+    public event Action<DaggerfallEntity, DaggerfallEntity, DaggerfallUnityItem, int, int> OnAttackDamageCalculated;
 
     //EOTB compatibility
     bool isInThirdPerson;
@@ -310,6 +331,13 @@ public class HorseRidingOverhaul : MonoBehaviour
         //add collision handler
         GameManager.Instance.PlayerObject.AddComponent<HorseRidingCollision>();
 
+        if (trampleWeapon == null)
+        {
+            trampleWeapon = ItemBuilder.CreateWeapon(Weapons.Warhammer, WeaponMaterialTypes.Steel);
+            trampleWeapon.shortName = "horse";
+        }
+
+        StartGameBehaviour.OnNewGame += OnNewGame;
         SaveLoadManager.OnLoad += OnLoad;
         SaveLoadManager.OnStartLoad += OnStartLoad;
         GameManager.Instance.PlayerEntity.OnExhausted += OnExhausted;
@@ -398,6 +426,25 @@ public class HorseRidingOverhaul : MonoBehaviour
             mod.GetAsset<AudioClip>("horse_whinny-2"),
         };
 
+        audioCamelNoise = new AudioClip[]
+        {
+            mod.GetAsset<AudioClip>("CamelDromedary_Adult_GrowlA"),
+            mod.GetAsset<AudioClip>("CamelDromedary_Adult_GruntA"),
+            mod.GetAsset<AudioClip>("CamelDromedary_Adult_SnortA"),
+            mod.GetAsset<AudioClip>("CamelDromedary_Adult_SpitA"),
+            mod.GetAsset<AudioClip>("CamelDromedary_Adult_Yawn"),
+        };
+
+        audioCamelCollision = new AudioClip[]
+        {
+            mod.GetAsset<AudioClip>("CamelDromedary_Adult_BellowA"),
+        };
+
+        audioCamelWinded = new AudioClip[]
+        {
+            mod.GetAsset<AudioClip>("CamelDromedary_Adult_ContactCallA"),
+        };
+
         mod.MessageReceiver = MessageReceiver;
         mod.IsReady = true;
     }
@@ -421,6 +468,21 @@ public class HorseRidingOverhaul : MonoBehaviour
         Mod travelOptions = ModManager.Instance.GetModFromGUID("93f3ad1c-83cc-40ac-b762-96d2f47f2e05");
         hasTravelOptions = travelOptions != null ? true : false;
     }
+
+    void MirroCombatEvents()
+    {
+        //grab VCEH's events to use it for our own
+        Mod ceh = ModManager.Instance.GetModFromGUID("fb086c76-38e7-4d83-91dc-f29e6f1bb17e");
+        if (ceh != null)
+        {
+            ModManager.Instance.SendModMessage(ceh.Title, "getAttackDamageCalculatedEvent", null, (string message, object data) =>
+            {
+                OnAttackDamageCalculated = (Action<DaggerfallEntity, DaggerfallEntity, DaggerfallUnityItem, int, int>)data;
+            });
+
+        }
+    }
+
     void MessageReceiver(string message, object data, DFModMessageCallback callBack)
     {
         switch (message)
@@ -445,6 +507,9 @@ public class HorseRidingOverhaul : MonoBehaviour
                 break;
             case "setModTrample":
                 SetModTrample((Vector2)data);
+                break;
+            case "setRideVariant":
+                SetModRideVariant((Vector2Int)data);
                 break;
             case "resetHorse":
                 ResetVariables();
@@ -502,6 +567,17 @@ public class HorseRidingOverhaul : MonoBehaviour
         modTrampleDamage = mods.y;
     }
 
+    void SetModRideVariant(Vector2Int mods)
+    {
+        rideIndexMod = mods.x;
+        variantIndexMod = mods.y;
+    }
+
+    public static void OnNewGame()
+    {
+        Instance.MirroCombatEvents();
+    }
+
     public static void OnPreFastTravel(DaggerfallTravelPopUp daggerfallTravelPopUp)
     {
         Instance.ResetVariables();
@@ -525,6 +601,7 @@ public class HorseRidingOverhaul : MonoBehaviour
     public static void OnLoad(SaveData_v1 saveData)
     {
         Instance.ResetVariablesWithDelay();
+        Instance.MirroCombatEvents();
     }
 
     public void ResetVariablesWithDelay(float delay = 1)
@@ -623,6 +700,12 @@ public class HorseRidingOverhaul : MonoBehaviour
         if (change.HasChanged("Compatibility"))
         {
             fullSpeedOnTravel = settings.GetValue<bool>("Compatibility", "FullSpeedOnTravel");
+            TextureScaleFactor = settings.GetValue<float>("Compatibility", "TextureScaleFactor");
+        }
+        if (change.HasChanged("Graphics"))
+        {
+            rideIndex = settings.GetValue<int>("Graphics", "Riding");
+            variantIndex = settings.GetValue<int>("Graphics", "Variant");
         }
 
         if (change.HasChanged("Widget") || oldGalloping != galloping || oldFrameCount != widget.sprintFrameCount)
@@ -727,13 +810,38 @@ public class HorseRidingOverhaul : MonoBehaviour
                     }
 
                     // Setup appropriate riding textures.
-                    string textureName = (transportManager.TransportMode == TransportModes.Horse) ? horseTextureName : cartTextureName;
-                    if (textureName != lastTextureName)
+
+                    string textureName;
+                    if (rideIndex > 0)
                     {
-                        for (int i = 0; i < 4; i++)
-                            ridingTexures[i] = ImageReader.GetImageData(textureName, 0, i, true, true);
-                        ridingTexture = ridingTexures[0];
-                        lastTextureName = textureName;
+                        int modeOffset = (transportManager.TransportMode == TransportModes.Horse) ? 0 : 1;
+                        int record = (variantIndex * 2) + modeOffset;
+                        textureName = camelArchive.ToString() + record.ToString();
+                        Debug.Log("FREE REIN - Riding record is " + record.ToString());
+                        if (textureName != lastTextureName)
+                        {
+                            for (int i = 0; i < 4; i++)
+                            {
+                                Texture2D texture;
+                                DaggerfallWorkshop.Utility.AssetInjection.TextureReplacement.TryImportTexture(camelArchive, record, i, out texture);
+                                ridingTextures[i] = texture;
+                            }
+
+                            ridingTexture = ridingTextures[0];
+                            lastTextureName = textureName;
+                        }
+                    }
+                    else
+                    {
+                        textureName = (transportManager.TransportMode == TransportModes.Horse) ? horseTextureName : cartTextureName;
+                        if (textureName != lastTextureName)
+                        {
+                            for (int i = 0; i < 4; i++)
+                                ridingTextures[i] = ImageReader.GetImageData(textureName, 0, i, true, true).texture;
+
+                            ridingTexture = ridingTextures[0];
+                            lastTextureName = textureName;
+                        }
                     }
 
                     // Setup appropriate riding sounds.
@@ -1034,7 +1142,10 @@ public class HorseRidingOverhaul : MonoBehaviour
                             //play rear up noise
                             if (customAudio && Time.time - lastCollision > 2)
                             {
-                                dfAudioSource.AudioSource.PlayOneShot(audioHorseCollision[UnityEngine.Random.Range(0, audioHorseCollision.Length)], 0.5f * DaggerfallUnity.Settings.SoundVolume * customAudioVolume);
+                                if ((rideIndexMod < 0 && rideIndex == 1) || rideIndexMod == 1)    //camel
+                                    dfAudioSource.AudioSource.PlayOneShot(audioCamelCollision[UnityEngine.Random.Range(0, audioCamelCollision.Length)], 0.5f * DaggerfallUnity.Settings.SoundVolume * customAudioVolume);
+                                else
+                                    dfAudioSource.AudioSource.PlayOneShot(audioHorseCollision[UnityEngine.Random.Range(0, audioHorseCollision.Length)], 0.5f * DaggerfallUnity.Settings.SoundVolume * customAudioVolume);
                                 lastCollision = Time.time;
                             }
 
@@ -1093,7 +1204,10 @@ public class HorseRidingOverhaul : MonoBehaviour
                     {
                         if (!isStaminaDrained)
                         {
-                            dfAudioSource.AudioSource.PlayOneShot(audioHorseWinded[UnityEngine.Random.Range(0, audioHorseWinded.Length)], 0.5f * DaggerfallUnity.Settings.SoundVolume * customAudioVolume);
+                            if ((rideIndexMod < 0 && rideIndex == 1) || rideIndexMod == 1)    //camel
+                                dfAudioSource.AudioSource.PlayOneShot(audioCamelWinded[UnityEngine.Random.Range(0, audioCamelWinded.Length)], 0.5f * DaggerfallUnity.Settings.SoundVolume * customAudioVolume);
+                            else
+                                dfAudioSource.AudioSource.PlayOneShot(audioHorseWinded[UnityEngine.Random.Range(0, audioHorseWinded.Length)], 0.5f * DaggerfallUnity.Settings.SoundVolume * customAudioVolume);
                             isStaminaDrained = true;
                         }
                         if (InputManager.Instance.ToggleAutorun)
@@ -1275,7 +1389,7 @@ public class HorseRidingOverhaul : MonoBehaviour
             {   // Stop animation frames and sound playing.
                 lastFrameTime = 0;
                 frameIndex = 0;
-                ridingTexture = ridingTexures[0];
+                ridingTexture = ridingTextures[0];
 
                 if (customAudio)
                 {
@@ -1312,7 +1426,7 @@ public class HorseRidingOverhaul : MonoBehaviour
                 {
                     lastFrameTime = Time.unscaledTime;
                     frameIndex = (frameIndex == 3) ? 0 : frameIndex + 1;
-                    ridingTexture = ridingTexures[frameIndex];
+                    ridingTexture = ridingTextures[frameIndex];
                 }
 
                 if (transportManager.RidingVolumeScale > 0)
@@ -1451,7 +1565,10 @@ public class HorseRidingOverhaul : MonoBehaviour
             {
                 if (customAudio)
                 {
-                    dfAudioSource.AudioSource.PlayOneShot(audioHorseNoise[UnityEngine.Random.Range(0,audioHorseNoise.Length)], 0.25f * DaggerfallUnity.Settings.SoundVolume * customAudioVolume);
+                    if ((rideIndexMod < 0 && rideIndex == 1) || rideIndexMod == 1)    //camel
+                        dfAudioSource.AudioSource.PlayOneShot(audioCamelNoise[UnityEngine.Random.Range(0, audioCamelNoise.Length)], 0.25f * DaggerfallUnity.Settings.SoundVolume * customAudioVolume);
+                    else
+                        dfAudioSource.AudioSource.PlayOneShot(audioHorseNoise[UnityEngine.Random.Range(0, audioHorseNoise.Length)], 0.25f * DaggerfallUnity.Settings.SoundVolume * customAudioVolume);
                     neighTime = Time.time + UnityEngine.Random.Range(2, 40);
                 }
                 else
@@ -1488,7 +1605,7 @@ public class HorseRidingOverhaul : MonoBehaviour
 
         if (Event.current.type.Equals(EventType.Repaint) && !GameManager.IsGamePaused)
         {
-            if ((transportManager.TransportMode == TransportModes.Horse || transportManager.TransportMode == TransportModes.Cart) && ridingTexture.texture != null)
+            if ((transportManager.TransportMode == TransportModes.Horse || transportManager.TransportMode == TransportModes.Cart) && ridingTexture != null)
             {
                 // Draw horse texture behind other HUD elements & weapons.
                 GUI.depth = 0;
@@ -1510,7 +1627,7 @@ public class HorseRidingOverhaul : MonoBehaviour
                 {
                     float fov = DaggerfallUnity.Settings.FieldOfView;
 
-                    Vector2 ridingTextureScaled = new Vector2(ridingTexture.width * horseScaleX, ridingTexture.height * horseScaleY) * currentInertia;
+                    Vector2 ridingTextureScaled = new Vector2(ridingTexture.width * horseScaleX, ridingTexture.height * horseScaleY) / TextureScaleFactor * currentInertia;
 
                     float offsetX = ridingTextureScaled.x * (angleYaw / (fov * 0.5f));
 
@@ -1553,7 +1670,7 @@ public class HorseRidingOverhaul : MonoBehaviour
                                         ridingTextureScaled.x,
                                         ridingTextureScaled.y);
                     }
-                    DaggerfallUI.DrawTexture(horseRect, ridingTexture.texture, ScaleMode.StretchToFill, true, Tint);
+                    DaggerfallUI.DrawTexture(horseRect, ridingTexture, ScaleMode.StretchToFill, true, Tint);
                 }
             }
         }
@@ -1605,7 +1722,10 @@ public class HorseRidingOverhaul : MonoBehaviour
     {
         if (charging != null || tokenCurrent < 1 || transportManager.TransportMode == TransportModes.Cart)
         {
-            if (customAudio) //play winded noise
+            //play winded noise
+            if ((rideIndexMod < 0 && rideIndex == 1) || rideIndexMod == 1)    //camel
+                dfAudioSource.AudioSource.PlayOneShot(audioCamelWinded[UnityEngine.Random.Range(0, audioCamelWinded.Length)], 0.5f * DaggerfallUnity.Settings.SoundVolume * customAudioVolume);
+            else
                 dfAudioSource.AudioSource.PlayOneShot(audioHorseWinded[UnityEngine.Random.Range(0, audioHorseWinded.Length)], 0.5f * DaggerfallUnity.Settings.SoundVolume * customAudioVolume);
 
             return;
@@ -1654,10 +1774,13 @@ public class HorseRidingOverhaul : MonoBehaviour
             if (trample == 1 && !enemyMotor.IsHostile)
                 return;
 
+            int struckBodyPart = FormulaHelper.CalculateStruckBodyPart();
+            int damage = 0;
+
             //roll for attack based on half of player's Blunt Weapons and half of Horse skill multiplied by Horse Accuracy mod
             if (FormulaHelper.CalculateSuccessfulHit(GameManager.Instance.PlayerEntity, hitEnemyEntity,
                 (GameManager.Instance.PlayerEntity.Skills.GetLiveSkillValue(DFCareer.Skills.BluntWeapon)/2+Mathf.RoundToInt(trampleSkill*modTrampleAccuracy)),
-                FormulaHelper.CalculateStruckBodyPart()))
+                struckBodyPart))
             {
                 // Play heavy hit sound.
                 EnemySounds enemySounds = target.GetComponent<EnemySounds>();
@@ -1675,7 +1798,7 @@ public class HorseRidingOverhaul : MonoBehaviour
                 //Base damage is calculated from half Blunt Weapons skill plus (horse skill multiplied by horse damage modifier)
                 int maxBaseDamage = FormulaHelper.CalculateHandToHandMaxDamage((GameManager.Instance.PlayerEntity.Skills.GetLiveSkillValue(DFCareer.Skills.BluntWeapon)/2)+Mathf.RoundToInt(trampleSkill * modTrampleDamage));
                 int minBaseDamage = FormulaHelper.CalculateHandToHandMinDamage((GameManager.Instance.PlayerEntity.Skills.GetLiveSkillValue(DFCareer.Skills.BluntWeapon)/2)+Mathf.RoundToInt(trampleSkill * modTrampleDamage));
-                int damage = UnityEngine.Random.Range(minBaseDamage, maxBaseDamage + 1);
+                damage = UnityEngine.Random.Range(minBaseDamage, maxBaseDamage + 1);
 
                 //Deal damage to enemy
                 DaggerfallEntityBehaviour playerEntityBehaviour = playerEntity.EntityBehaviour;
@@ -1698,7 +1821,10 @@ public class HorseRidingOverhaul : MonoBehaviour
                 //play rear up noise
                 if (customAudio && Time.time - lastCollision > 2)
                 {
-                    dfAudioSource.AudioSource.PlayOneShot(audioHorseCollision[UnityEngine.Random.Range(0, audioHorseCollision.Length)], 0.5f * DaggerfallUnity.Settings.SoundVolume * customAudioVolume);
+                    if (rideIndex == 1 || rideIndexMod == 1)    //camel
+                        dfAudioSource.AudioSource.PlayOneShot(audioCamelCollision[UnityEngine.Random.Range(0, audioCamelCollision.Length)], 0.5f * DaggerfallUnity.Settings.SoundVolume * customAudioVolume);
+                    else
+                        dfAudioSource.AudioSource.PlayOneShot(audioHorseCollision[UnityEngine.Random.Range(0, audioHorseCollision.Length)], 0.5f * DaggerfallUnity.Settings.SoundVolume * customAudioVolume);
                     lastCollision = Time.time;
                 }
 
@@ -1712,6 +1838,9 @@ public class HorseRidingOverhaul : MonoBehaviour
                     enemyMotor.KnockbackDirection = Quaternion.Euler(0, Mathf.Sign(dot) * 90f, 0) * direction;
                 }
             }
+
+            if (Instance.OnAttackDamageCalculated != null)
+                Instance.OnAttackDamageCalculated(GameManager.Instance.PlayerEntity, targetBehaviour.Entity, trampleWeapon, struckBodyPart, damage);
         }
     }
 
