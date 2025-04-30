@@ -1,6 +1,6 @@
 {
     "ModTitle": "Weapon Widget",
-    "ModVersion": "1.4.1",
+    "ModVersion": "1.4.2",
     "ModAuthor": "RedRoryOTheGlen",
     "ContactInfo": "rmufrancisco@gmail.com",
     "DFUnity_Version": "1.1.1",
@@ -183,5 +183,12 @@
         "Assets/Game/Mods/FPSWeaponClone/Textures/w_WEAPO105.CIF_0-0_Daedric.png",
         "Assets/Game/Mods/FPSWeaponClone/Textures/w_WEAPO101.CIF_0-0_Silver.png",
         "Assets/Game/Mods/FPSWeaponClone/Textures/w_WEAPO101.CIF_0-0_Mithril.png"
+    ],
+    "Dependencies": [
+        {
+            "Name": "tome of battle",
+            "IsOptional": true,
+            "IsPeer": false
+        }
     ]
 }

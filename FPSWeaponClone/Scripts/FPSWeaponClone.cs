@@ -137,12 +137,14 @@ public class FPSWeaponClone : MonoBehaviour
     bool leftHanded;
     bool ambidexterity;
     bool doubleScale;
-    bool recoil;
 
+    bool trueSize;
+    int textureScaleFactor = 1;
+
+    bool recoil;
     float recoilChance = 0.5f;
     int recoilCondition = 0;    //0 = hits only, 1 = hits and parries, 2 = all attacks
     bool hasCurrentAttackHit;
-
     bool recoilEnvironment;
     bool playMissVFXEntity;
     bool playMissVFXEnvironment;
@@ -151,6 +153,7 @@ public class FPSWeaponClone : MonoBehaviour
     bool mirrorBows;
 
     //Mod compatibility
+
     public event Action<Vector2> OnPositionChange;
     public event Action<Vector2> OnScaleChange;
     public event Action<Vector2> OnOffsetChange;
@@ -242,6 +245,7 @@ public class FPSWeaponClone : MonoBehaviour
             stepTransforms = settings.GetValue<bool>("Modules", "Step");
             inertia = settings.GetValue<bool>("Modules", "Inertia");
             doubleScale = settings.GetValue<bool>("Modules", "DoubleScaleTextures");
+            trueSize = settings.GetValue<bool>("Modules", "TrueTextureSize");
             recoil = settings.GetValue<bool>("Modules", "Recoil");
         }
         if (change.HasChanged("Swings"))
@@ -293,6 +297,10 @@ public class FPSWeaponClone : MonoBehaviour
         {
             mirrorBows = settings.GetValue<bool>("Miscellaneous", "MirrorBows");
         }
+        if (change.HasChanged("TrueTextureSize"))
+        {
+            textureScaleFactor = settings.GetValue<int>("TrueTextureSize", "TextureScaleFactor");
+        }
     }
     private void ModCompatibilityChecking()
     {
@@ -314,13 +322,6 @@ public class FPSWeaponClone : MonoBehaviour
 
         //check if Tome of Battle is installed
         tomeOfBattle = ModManager.Instance.GetModFromGUID("a166c215-0a5a-4582-8bf3-8be8df80d5e5");
-        if (tomeOfBattle != null)
-        {
-            ModManager.Instance.SendModMessage(tomeOfBattle.Title, "getSwingKeyCode", null, (string message, object data) =>
-            {
-                tomeOfBattleSwingKeyCode = (KeyCode)data;
-            });
-        }
     }
     public void OnAttackDamageCalculated(DaggerfallEntity attacker, DaggerfallEntity target, DaggerfallUnityItem weapon, int bodyPart, int damage)
     {
@@ -700,7 +701,7 @@ public class FPSWeaponClone : MonoBehaviour
         hasCurrentAttackHit = false;
         animating = null;
     }
-    IEnumerator PlayBowAnimation()
+    /*IEnumerator PlayBowAnimation()
     {
         if (DaggerfallUnity.Settings.BowDrawback)
         {
@@ -760,6 +761,13 @@ public class FPSWeaponClone : MonoBehaviour
                 }
 
                 float timeCooldown = FormulaHelper.GetBowCooldownTime(GameManager.Instance.PlayerEntity);
+
+                if (tomeOfBattle != null)
+                {
+                    if ((Weapons)SpecificWeapon.TemplateIndex == Weapons.Long_Bow)
+                        timeCooldown *= 1.5f;
+                }
+
                 float timerCooldown = 0;
                 //wait for end of cooldown
                 while (timerCooldown < timeCooldown)
@@ -830,6 +838,126 @@ public class FPSWeaponClone : MonoBehaviour
 
         //clear coroutine
         animating = null;
+    }*/
+    IEnumerator PlayBowAnimation()
+    {
+        if (DaggerfallUnity.Settings.BowDrawback)
+        {
+            currentFrame = 0;
+            ChangeWeaponState(WeaponStates.StrikeUp);
+            UpdateWeapon();
+
+
+            float drawTime = 12;
+            float drawTimer = 0;
+            bool drawOver = false;
+            //play the draw animation
+            while (ScreenWeapon.WeaponState == WeaponStates.StrikeUp)
+            {
+                if (drawTimer > drawTime || InputManager.Instance.ActionStarted(InputManager.Actions.ActivateCenterObject))
+                {
+                    drawOver = true;
+                    break;
+                }
+
+                offsetTarget = Vector2.zero;
+                offsetCurrent = Vector2.zero;
+
+                if (currentFrame < 3)
+                {
+                    currentFrame++;
+                    UpdateWeapon();
+                    drawTimer += GameManager.classicUpdateInterval;
+                    yield return new WaitForSeconds(GameManager.classicUpdateInterval);
+                }
+                else
+                {
+                    drawTimer += Time.deltaTime;
+                    yield return new WaitForEndOfFrame();
+                }
+            }
+
+            if (ScreenWeapon.WeaponState == WeaponStates.StrikeDown)
+            {
+                ChangeWeaponState(WeaponStates.StrikeDown);
+                UpdateWeapon();
+
+                PlaySwingSound();
+
+                yield return new WaitForSeconds(GameManager.classicUpdateInterval);
+
+                //play the rest of the animation
+                while (ScreenWeapon.WeaponState == WeaponStates.StrikeDown && currentFrame < weaponAnims[(int)weaponState].NumFrames - 1)
+                {
+                    offsetTarget = Vector2.zero;
+                    offsetCurrent = Vector2.zero;
+
+                    currentFrame++;
+                    UpdateWeapon();
+
+                    yield return new WaitForSeconds(GameManager.classicUpdateInterval);
+                }
+            }
+            else
+            {
+                //reverse the animation
+                while (currentFrame > 0)
+                {
+                    offsetTarget = Vector2.zero;
+                    offsetCurrent = Vector2.zero;
+
+                    currentFrame--;
+                    UpdateWeapon();
+                    yield return new WaitForSeconds(GameManager.classicUpdateInterval);
+                }
+            }
+
+            //reset to idle
+            ChangeWeaponState(WeaponStates.Idle);
+            currentFrame = 0;
+            UpdateWeapon();
+        }
+        else
+        {
+            currentFrame = 3;
+            ChangeWeaponState(WeaponStates.StrikeDown);
+            UpdateWeapon();
+
+            yield return new WaitForSeconds(GameManager.classicUpdateInterval);
+
+            PlaySwingSound();
+
+            //play the shoot animation
+            while (currentFrame < weaponAnims[(int)weaponState].NumFrames - 1)
+            {
+                offsetTarget = Vector2.zero;
+                offsetCurrent = Vector2.zero;
+
+                currentFrame++;
+                UpdateWeapon();
+
+                yield return new WaitForSeconds(GameManager.classicUpdateInterval);
+            }
+
+            //wait for end of attack
+            while (ScreenWeapon.IsAttacking())
+            {
+                offsetTarget = Vector2.up;
+                yield return new WaitForEndOfFrame();
+            }
+
+            //reset to idle
+            currentFrame = 3;
+            ChangeWeaponState(WeaponStates.StrikeDown);
+            UpdateWeapon();
+        }
+
+        //set current offset
+        offsetCurrent = new Vector2(0, 1);
+
+
+        //clear coroutine
+        animating = null;
     }
     public void ChangeWeaponState(WeaponStates state)
     {
@@ -854,7 +982,6 @@ public class FPSWeaponClone : MonoBehaviour
             return;*/
 
         bool updateWeapon = false;
-        GUI.depth = 1;
 
         if (DaggerfallUI.Instance.CustomScreenRect != null)
             screenRect = DaggerfallUI.Instance.CustomScreenRect.Value;
@@ -922,6 +1049,8 @@ public class FPSWeaponClone : MonoBehaviour
         if (Event.current.type.Equals(EventType.Repaint) && currentFrame != -1 && ShowWeapon && !isInThirdPerson && !(!offset && (GameManager.Instance.WeaponManager.Sheathed || GameManager.Instance.PlayerSpellCasting.IsPlayingAnim || GameManager.Instance.PlayerEffectManager.HasReadySpell)))
         {
             // Draw weapon texture behind other HUD elements
+            GUI.depth = 1;
+
             Texture2D tex = curCustomTexture ? curCustomTexture : weaponAtlas.AtlasTexture;
             DaggerfallUI.DrawTextureWithTexCoords(GetWeaponRect(), tex, curAnimRect, true, ScreenWeapon.Tint);
         }
@@ -942,8 +1071,11 @@ public class FPSWeaponClone : MonoBehaviour
             weaponPositionOffset.x += Position.x;
         weaponPositionOffset.y += Position.y;
 
-        weaponPositionOffset.width *= Scale.x;
-        weaponPositionOffset.height *= Scale.y;
+        if (currentWeaponType != WeaponTypes.Werecreature)
+        {
+            weaponPositionOffset.width *= Scale.x;
+            weaponPositionOffset.height *= Scale.y;
+        }
 
         /*//Adds the Offset to the Rect's position
         weaponPositionOffset.x -= weaponPositionOffset.width * 0.5f;
@@ -1136,7 +1268,7 @@ public class FPSWeaponClone : MonoBehaviour
                         if (ScreenWeapon.WeaponState == WeaponStates.StrikeLeft)
                             PlayAttackAnimation(WeaponStates.StrikeRight);
                         else if (ScreenWeapon.WeaponState == WeaponStates.StrikeDownLeft)
-                            PlayAttackAnimation(WeaponStates.StrikeLeft);
+                            PlayAttackAnimation(WeaponStates.StrikeDownRight);
                         else
                             PlayAttackAnimation(ScreenWeapon.WeaponState);
                     }
@@ -1313,21 +1445,25 @@ public class FPSWeaponClone : MonoBehaviour
             //set center of sprite to corner
             if (weaponState == WeaponStates.Idle || (currentWeaponType == WeaponTypes.Bow && currentFrame == 0))
             {
-                Scale += Vector2.one;
+                //Scale += Vector2.one;
+
                 if (currentWeaponType == WeaponTypes.Werecreature)
-                    Offset -= new Vector2(0.25f, 0);
-                if (mirror)
-                    Offset += new Vector2(0.5f, 0);
+                    Offset += new Vector2(0, 0.5f);
+                else
+                    Offset += new Vector2(0.5f, 0.5f);
+
+                /*if (mirror)
+                    Offset += new Vector2(-2f, 0);*/
             }
         }
 
-        if (Position != Vector2.zero && OnPositionChange != null)
+        if (OnPositionChange != null)
             OnPositionChange(Position);
 
-        if (Scale != Vector2.one && OnScaleChange != null)
+        if (OnScaleChange != null)
             OnScaleChange(Scale);
 
-        if (Offset != Vector2.zero && OnOffsetChange != null)
+        if (OnOffsetChange != null)
             OnOffsetChange(Offset);
 
         if (ScreenWeapon.ShowWeapon)
@@ -1398,6 +1534,37 @@ public class FPSWeaponClone : MonoBehaviour
             // Get weapon dimensions
             int width = weaponAtlas.WeaponIndices[weaponAnimRecordIndex].width;
             int height = weaponAtlas.WeaponIndices[weaponAnimRecordIndex].height;
+
+            if (isImported)
+            {
+                if (trueSize)
+                {
+                    width = curCustomTexture.width / textureScaleFactor;
+                    height = curCustomTexture.height / textureScaleFactor;
+                }
+                else
+                {
+                    if (doubleScale)
+                    {
+                        if (currentWeaponType != WeaponTypes.Bow)
+                        {
+                            if (weaponState == WeaponStates.Idle)
+                            {
+                                width *= 2;
+                                height *= 2;
+                            }
+                        }
+                        else
+                        {
+                            if (currentFrame == 0)
+                            {
+                                width *= 2;
+                                height *= 2;
+                            }
+                        }
+                    }
+                }
+            }
 
             // Get weapon scale
             weaponScaleX = (float)screenRect.width / (float)nativeScreenWidth;
@@ -1599,7 +1766,6 @@ public class FPSWeaponClone : MonoBehaviour
                 width = size.Width,
                 height = size.Height,
             };
-            indices.Add(ri);
             if (cachedAtlas == null) // Load atlas if not already cached.
             {
                 for (int frame = 0; frame < frames; frame++)
@@ -1640,6 +1806,8 @@ public class FPSWeaponClone : MonoBehaviour
                     modTextures.Add(MaterialReader.MakeTextureKey(0, (byte)record, (byte)frame), tex);
                 }
             }
+
+            indices.Add(ri);
         }
 
         if (cachedAnimation == null && modTextures.Count > 0)

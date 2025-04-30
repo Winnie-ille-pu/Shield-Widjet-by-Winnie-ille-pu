@@ -57,6 +57,13 @@
                 },
                 {
                     "Value": false,
+                    "Name": "TrueTextureSize",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.ToggleKey"
+                },
+                {
+                    "Value": false,
                     "Name": "Recoil",
                     "Description": null,
                     "$version": "v1",
@@ -141,13 +148,6 @@
                     "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderFloatKey"
                 }
             ],
-            "$version": "v1"
-        },
-        {
-            "Name": "-",
-            "Description": null,
-            "IsAdvanced": false,
-            "Keys": [],
             "$version": "v1"
         },
         {
@@ -260,13 +260,6 @@
             "$version": "v1"
         },
         {
-            "Name": ".",
-            "Description": ".",
-            "IsAdvanced": false,
-            "Keys": [],
-            "$version": "v1"
-        },
-        {
             "Name": "Inertia",
             "Description": "Delays the sprite on the screen when the view is manipulated. Requires double-scaled weapon textures.",
             "IsAdvanced": true,
@@ -311,10 +304,20 @@
             "$version": "v1"
         },
         {
-            "Name": "_",
-            "Description": "",
+            "Name": "TrueTextureSize",
+            "Description": null,
             "IsAdvanced": false,
-            "Keys": [],
+            "Keys": [
+                {
+                    "Min": 1,
+                    "Max": 8,
+                    "Value": 1,
+                    "Name": "TextureScaleFactor",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderIntKey"
+                }
+            ],
             "$version": "v1"
         },
         {
