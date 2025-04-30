@@ -401,8 +401,6 @@ public class ShieldWidget : MonoBehaviour
 
     private void OnGUI()
     {
-        GUI.depth = 0;
-
         if (shieldTexture == null || GameManager.Instance.PlayerEntity == null || isInThirdPerson)
             return;
 
@@ -424,7 +422,10 @@ public class ShieldWidget : MonoBehaviour
                 )
                 return;
 
-            DaggerfallUI.DrawTextureWithTexCoords(GetShieldRect(), shieldTexture, curAnimRect, true, GameManager.Instance.WeaponManager.ScreenWeapon.Tint);
+            if (Event.current.type == EventType.Repaint) {
+                GUI.depth = 0;
+                DaggerfallUI.DrawTextureWithTexCoords(GetShieldRect(), shieldTexture, curAnimRect, true, GameManager.Instance.WeaponManager.ScreenWeapon.Tint);
+            }
         }
     }
 
