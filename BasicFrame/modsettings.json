@@ -1,0 +1,31 @@
+{
+    "Version": null,
+    "Sections": [
+        {
+            "Name": "Main",
+            "Description": null,
+            "IsAdvanced": false,
+            "Keys": [
+                {
+                    "Min": -10,
+                    "Max": 10,
+                    "Value": -1,
+                    "Name": "PlayDepth",
+                    "Description": "Render depth of overlay when game is playing",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderIntKey"
+                },
+                {
+                    "Min": -10,
+                    "Max": 10,
+                    "Value": 1,
+                    "Name": "PauseDepth",
+                    "Description": "Render depth of overlay when game is paused",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderIntKey"
+                }
+            ],
+            "$version": "v1"
+        }
+    ]
+}

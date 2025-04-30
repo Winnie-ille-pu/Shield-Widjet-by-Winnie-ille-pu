@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -85,6 +86,9 @@ public class AutoSight : MonoBehaviour
     float autopitchTimer;
     float autopitchOffset = 0;
 
+    Mod tomeOfBattle;
+    KeyCode tomeOfBattleSwingKeyCode = KeyCode.None;
+
     static Mod mod;
     [Invoke(StateManager.StateTypes.Start, 0)]
 
@@ -107,6 +111,8 @@ public class AutoSight : MonoBehaviour
 
         mod.LoadSettingsCallback = LoadSettings;
         mod.LoadSettings();
+
+        ModCompatibilityChecking();
 
         InitializeTextures();
 
@@ -162,6 +168,19 @@ public class AutoSight : MonoBehaviour
             feedbackWidgetOffsetY = 1 - settings.GetTupleFloat("Feedback", "WidgetOffset").Second;
             feedbackWidgetScale = settings.GetValue<float>("Feedback", "WidgetScale");
             GetEyeRect();
+        }
+    }
+
+    private void ModCompatibilityChecking()
+    {
+        //check if Tome of Battle is installed
+        tomeOfBattle = ModManager.Instance.GetModFromGUID("a166c215-0a5a-4582-8bf3-8be8df80d5e5");
+        if (tomeOfBattle != null)
+        {
+            ModManager.Instance.SendModMessage(tomeOfBattle.Title, "getSwingKeyCode", null, (string message, object data) =>
+            {
+                tomeOfBattleSwingKeyCode = (KeyCode)data;
+            });
         }
     }
 
@@ -233,7 +252,8 @@ public class AutoSight : MonoBehaviour
         }
         else
         {
-            if (!InputManager.Instance.HasAction(InputManager.Actions.SwingWeapon))
+            if ((tomeOfBattleSwingKeyCode == KeyCode.None && !InputManager.Instance.HasAction(InputManager.Actions.SwingWeapon)) ||
+                (tomeOfBattleSwingKeyCode != KeyCode.None && !InputManager.Instance.GetKey(tomeOfBattleSwingKeyCode)))
                 return;
         }
 
@@ -379,7 +399,8 @@ public class AutoSight : MonoBehaviour
         }
         else
         {
-            if (InputManager.Instance.ActionComplete(InputManager.Actions.SwingWeapon))
+            if ((tomeOfBattleSwingKeyCode == KeyCode.None && InputManager.Instance.ActionComplete(InputManager.Actions.SwingWeapon)) ||
+                (tomeOfBattleSwingKeyCode != KeyCode.None && InputManager.Instance.GetKeyUp(tomeOfBattleSwingKeyCode)))
             {
                 ClearTarget();
                 DaggerfallUI.Instance.DaggerfallHUD.ShowCrosshair = true;
@@ -406,7 +427,8 @@ public class AutoSight : MonoBehaviour
         }
         else
         {
-            if (InputManager.Instance.HasAction(InputManager.Actions.SwingWeapon))
+            if ((tomeOfBattleSwingKeyCode == null && InputManager.Instance.HasAction(InputManager.Actions.SwingWeapon)) ||
+                (tomeOfBattleSwingKeyCode != null && InputManager.Instance.GetKey(tomeOfBattleSwingKeyCode)))
             {
                 if (target == null)
                     TrySeekTarget();

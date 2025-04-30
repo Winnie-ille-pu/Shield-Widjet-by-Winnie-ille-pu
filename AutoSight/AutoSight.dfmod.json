@@ -1,6 +1,6 @@
 {
     "ModTitle": "Auto-Sight",
-    "ModVersion": "1.2.5",
+    "ModVersion": "1.2.6",
     "ModAuthor": "RedRoryOTheGlen",
     "ContactInfo": "rmufrancisco@gmail.com",
     "DFUnity_Version": "1.1.1",
@@ -13,6 +13,14 @@
         "Assets/Game/Mods/AutoSight/Textures/500_0-1.png",
         "Assets/Game/Mods/AutoSight/Textures/500_0-0.png",
         "Assets/Game/Mods/AutoSight/Textures/500_0-3.png",
-        "Assets/Game/Mods/AutoSight/Textures/500_0-4.png"
+        "Assets/Game/Mods/AutoSight/Textures/500_0-4.png",
+        "Assets/Game/Mods/AutoSight/AutoSight.dfmod.json"
+    ],
+    "Dependencies": [
+        {
+            "Name": "tome of battle",
+            "IsOptional": true,
+            "IsPeer": false
+        }
     ]
 }

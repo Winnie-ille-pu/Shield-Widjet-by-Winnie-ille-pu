@@ -1,0 +1,21 @@
+{
+    "ModTitle": "Rock 'n' Roll",
+    "ModVersion": "1.0",
+    "ModAuthor": "RedRoryOTheGlen",
+    "ContactInfo": "rmufrancisco@gmail.com",
+    "DFUnity_Version": "1.1.1",
+    "ModDescription": "Custom camera bob, roll and recoil controller",
+    "GUID": "2b71fe53-538b-4039-bff2-bc836a33640f",
+    "Files": [
+        "Assets/Game/Mods/CameraTransformer/Scripts/CameraTransformer.cs",
+        "Assets/Game/Mods/CameraTransformer/modsettings.json",
+        "Assets/Game/Mods/CameraTransformer/CameraTransformer.dfmod.json"
+    ],
+    "Dependencies": [
+        {
+            "Name": "vanilla combat event handler",
+            "IsOptional": true,
+            "IsPeer": true
+        }
+    ]
+}

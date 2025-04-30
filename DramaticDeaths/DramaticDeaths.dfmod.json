@@ -1,0 +1,15 @@
+{
+    "ModTitle": "Dramatic Deaths",
+    "ModVersion": "1.1.2",
+    "ModAuthor": "RedRoryOTheGlen",
+    "ContactInfo": "rmufrancisco@gmail.com",
+    "DFUnity_Version": "1.1.1",
+    "ModDescription": "Simply makes sure enemies finish their knockback animations before turning into a corpse",
+    "GUID": "008d1cb7-9651-4218-a156-cc2a0d49cb01",
+    "Files": [
+        "Assets/Game/Mods/DramaticDeaths/Scripts/DramaticDeaths.cs",
+        "Assets/Game/Mods/DramaticDeaths/Scripts/DramaticDeathsDelayer.cs",
+        "Assets/Game/Mods/DramaticDeaths/modsettings.json",
+        "Assets/Game/Mods/DramaticDeaths/Scripts/DramaticDeathsCorpseGrounder.cs"
+    ]
+}
