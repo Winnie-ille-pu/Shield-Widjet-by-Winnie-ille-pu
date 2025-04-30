@@ -22,7 +22,26 @@ namespace VanillaArmorReplacer
         {
             set
             {
-                if (VanillaArmorReplacer.Instance.textureArchive == 1)
+                if (VanillaArmorReplacer.Instance.textureArchive == 2 && (nativeMaterialValue == (int)ArmorMaterialTypes.Leather || nativeMaterialValue == (int)ArmorMaterialTypes.Chain))
+                {
+                    base.CurrentVariant = 0;
+                    if (NativeMaterialValue == (int)ArmorMaterialTypes.Leather)
+                    {
+                        if (!HasCustomEnchantments && !HasLegacyEnchantments)
+                            shortName = VanillaArmorReplacer.Instance.nameGreavesLeather;
+                    }
+                    else if (NativeMaterialValue == (int)ArmorMaterialTypes.Chain)
+                    {
+                        if (!HasCustomEnchantments && !HasLegacyEnchantments)
+                            shortName = VanillaArmorReplacer.Instance.nameGreavesChain;
+                    }
+                    else
+                    {
+                        if (!HasCustomEnchantments && !HasLegacyEnchantments)
+                            shortName = VanillaArmorReplacer.Instance.nameGreavesPlate;
+                    }
+                }
+                else if (VanillaArmorReplacer.Instance.textureArchive == 1)
                 {
                     if (NativeMaterialValue == (int)ArmorMaterialTypes.Leather)
                     {
@@ -74,46 +93,64 @@ namespace VanillaArmorReplacer
             }
         }
 
-        /*// Add brig prefix to name for Iron+ materials.
-        public override int CurrentVariant
-        {
-            set
-            {
-                base.CurrentVariant = value;
-                if (nativeMaterialValue == (int)ArmorMaterialTypes.Leather)
-                {
-                    shortName = ItemHauberk.padded + shortName;
-                    nativeMaterialValue = (int)ArmorMaterialTypes.Leather;
-                    message = 1;
-                }
-                else
-                    shortName = ItemHauberk.mail + shortName;
-            }
-        }
-
-        // Always use same archive for both genders as the same image set is used
+        //set gender and phenotype
         public override int InventoryTextureArchive
         {
-            get { return templateIndex; }
+            get
+            {
+                if (VanillaArmorReplacer.Instance.textureArchive == 2 && (nativeMaterialValue == (int)ArmorMaterialTypes.Leather || nativeMaterialValue == (int)ArmorMaterialTypes.Chain))
+                {
+                    int offset = PlayerTextureArchive - ItemBuilder.firstFemaleArchive;
+
+                    if (offset < 4)
+                        return 112354;
+                    else
+                        return 112350;
+                }
+                else
+                    return base.InventoryTextureArchive;
+            }
         }
 
         public override int InventoryTextureRecord
         {
             get
             {
-                int offset = PlayerTextureArchive - ItemBuilder.firstFemaleArchive;
-                // Only use 2 & 6 / 10 & 14 human morphology for now..
+                if (VanillaArmorReplacer.Instance.textureArchive == 2 && (nativeMaterialValue == (int)ArmorMaterialTypes.Leather || nativeMaterialValue == (int)ArmorMaterialTypes.Chain))
+                {
+                    int offset = 3;
 
-                offset = (offset < 4) ? 2 : 6;
+                    if (nativeMaterialValue == (int)ArmorMaterialTypes.Daedric)
+                        offset += 1100;
+                    else if (nativeMaterialValue == (int)ArmorMaterialTypes.Orcish)
+                        offset += 1000;
+                    else if (nativeMaterialValue == (int)ArmorMaterialTypes.Ebony)
+                        offset += 900;
+                    else if (nativeMaterialValue == (int)ArmorMaterialTypes.Adamantium)
+                        offset += 800;
+                    else if (nativeMaterialValue == (int)ArmorMaterialTypes.Mithril)
+                        offset += 700;
+                    else if (nativeMaterialValue == (int)ArmorMaterialTypes.Dwarven)
+                        offset += 600;
+                    else if (nativeMaterialValue == (int)ArmorMaterialTypes.Elven)
+                        offset += 500;
+                    else if (nativeMaterialValue == (int)ArmorMaterialTypes.Silver)
+                        offset += 400;
+                    else if (nativeMaterialValue == (int)ArmorMaterialTypes.Steel)
+                        offset += 300;
+                    else if (nativeMaterialValue == (int)ArmorMaterialTypes.Iron)
+                        offset += 200;
+                    else if (nativeMaterialValue == (int)ArmorMaterialTypes.Chain)
+                        offset += 100;
 
-                if (nativeMaterialValue == (int)ArmorMaterialTypes.Leather)
-                    offset += 10;
-                else if (nativeMaterialValue == (int)ArmorMaterialTypes.Chain)
-                    offset += 20;
+                    dyeColor = DyeColors.Silver;
 
-                return offset;
+                    return offset;
+                }
+                else
+                    return base.InventoryTextureRecord;
             }
-        }*/
+        }
 
         // Gets native material value, modifying it to use the 'chain' value for first byte if plate.
         // This fools the DFU code into treating this item as chainmail for forbidden checks etc.

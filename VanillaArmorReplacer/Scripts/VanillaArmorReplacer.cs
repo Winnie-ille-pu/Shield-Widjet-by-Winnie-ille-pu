@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using DaggerfallConnect;
+using DaggerfallConnect.Arena2;
 using DaggerfallWorkshop;
 using DaggerfallWorkshop.Game;
 using DaggerfallWorkshop.Game.Entity;
@@ -75,8 +77,10 @@ namespace VanillaArmorReplacer
 
         //custom texture archive stuff
 
+        CifRciFile cifFile;
+
         //custom dye stuff
-        /*byte[] dyeLeather = new byte[] { 0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x4A, 0x4B, 0x4C, 0x4D, 0x4E, 0x4F };
+        byte[] dyeLeather = new byte[] { 0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x4A, 0x4B, 0x4C, 0x4D, 0x4E, 0x4F };
         byte[] dyeChain = new byte[] { 0x50, 0x51, 0x52, 0x53, 0x54, 0x55, 0x56, 0x57, 0x58, 0x59, 0x5A, 0x5B, 0x5C, 0x5D, 0x5E, 0x5F };
         byte[] dyeIron = new byte[] { 0x77, 0x78, 0x57, 0x79, 0x58, 0x59, 0x7A, 0x5A, 0x7B, 0x5B, 0x7C, 0x5C, 0x7D, 0x5D, 0x5E, 0x5F };
         byte[] dyeSteel = new byte[] { 0x70, 0x71, 0x72, 0x73, 0x74, 0x75, 0x76, 0x77, 0x78, 0x79, 0x7A, 0x7B, 0x7C, 0x7D, 0x7E, 0x7F };
@@ -87,7 +91,7 @@ namespace VanillaArmorReplacer
         byte[] dyeAdamantium = new byte[] { 0x5A, 0x5B, 0x7C, 0x5C, 0x7D, 0x5D, 0x7E, 0x5E, 0x7F, 0xD8, 0xD9, 0xDA, 0xDB, 0xDC, 0xDD, 0xDE };
         byte[] dyeEbony = new byte[] { 0x77, 0x78, 0x79, 0x7A, 0x7B, 0x7C, 0x7D, 0x7E, 0x7F, 0xD8, 0xD9, 0xDA, 0xDB, 0xDC, 0xDD, 0xDE };
         byte[] dyeOrcish = new byte[] { 0xC6, 0xC7, 0xC8, 0xC9, 0xCA, 0xCB, 0xCC, 0xCD, 0xCE, 0xCF, 0xD8, 0xD9, 0xDA, 0xDB, 0xDC, 0xDD };
-        byte[] dyeDaedric = new byte[] { 0xEF, 0xF0, 0xF1, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7, 0xF8, 0xF9, 0xFA, 0xFB, 0xFC, 0xFD, 0xFE };*/
+        byte[] dyeDaedric = new byte[] { 0xEF, 0xF0, 0xF1, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7, 0xF8, 0xF9, 0xFA, 0xFB, 0xFC, 0xFD, 0xFE };
 
         void Awake()
         {
@@ -573,6 +577,96 @@ namespace VanillaArmorReplacer
                     item.CurrentVariant = variant;
                 }
             }
+        }
+
+
+        //old experiment to recolor objects with custom dyes
+        public DFBitmap ChangeArmorDye(DFBitmap srcBitmap, ArmorMaterialTypes metal)
+        {
+            // Clone bitmap and get colour table for swaps
+            DFBitmap dstBitmap = DFBitmap.CloneDFBitmap(srcBitmap, false);
+            byte[] swaps = GetMetalColorTable(metal);
+
+            //Starting range for weapons and armor
+            int start = 0x70;
+
+            // Swap indices start through start + 15 with colour table
+            int rowPos;
+            for (int y = 0; y < srcBitmap.Height; y++)
+            {
+                rowPos = y * srcBitmap.Width;
+                for (int x = 0; x < srcBitmap.Width; x++)
+                {
+                    int srcOffset = rowPos + x;
+                    byte index = srcBitmap.Data[srcOffset];
+
+                    if (index >= start && index <= start + 0x0f)
+                    {
+                        int tintOffset = index - start;
+                        dstBitmap.Data[srcOffset] = swaps[tintOffset];
+                    }
+                    else
+                    {
+                        dstBitmap.Data[srcOffset] = index;
+                    }
+                }
+            }
+
+            return dstBitmap;
+        }
+        /// <summary>
+        /// Gets colour table for each metal type.
+        /// </summary>
+        public byte[] GetMetalColorTable(ArmorMaterialTypes metal)
+        {
+            byte[] indices;
+            switch (metal)
+            {
+                case ArmorMaterialTypes.Leather:
+                    indices = dyeLeather;
+                    break;
+                case ArmorMaterialTypes.Chain:
+                    indices = dyeChain;
+                    break;
+                case ArmorMaterialTypes.Chain2:
+                    indices = dyeChain;
+                    break;
+                case ArmorMaterialTypes.Iron:
+                    indices = dyeIron;
+                    break;
+                case ArmorMaterialTypes.Steel:
+                    indices = dyeSteel;
+                    break;
+                case ArmorMaterialTypes.Silver:
+                    indices = dyeSilver;
+                    break;
+                case ArmorMaterialTypes.Elven:
+                    indices = dyeElven;
+                    break;
+                case ArmorMaterialTypes.Dwarven:
+                    indices = dyeDwarven;
+                    break;
+                case ArmorMaterialTypes.Mithril:
+                    indices = dyeMithril;
+                    break;
+                case ArmorMaterialTypes.Adamantium:
+                    indices = dyeAdamantium;
+                    break;
+                case ArmorMaterialTypes.Ebony:
+                    indices = dyeEbony;
+                    break;
+                case ArmorMaterialTypes.Orcish:
+                    indices = dyeOrcish;
+                    break;
+                case ArmorMaterialTypes.Daedric:
+                    indices = dyeDaedric;
+                    break;
+                default:
+                    indices = new byte[] { 0x70, 0x71, 0x72, 0x73, 0x74, 0x75, 0x76, 0x77, 0x78, 0x79, 0x7A, 0x7B, 0x7C, 0x7D, 0x7E, 0x7F };
+                    break;
+            }
+
+            return indices;
         }
     }
 }

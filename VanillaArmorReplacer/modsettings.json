@@ -49,8 +49,9 @@
             "Keys": [
                 {
                     "Options": [
-                        "Vanilla textures",
-                        "Leather + Chain"
+                        "Vanilla",
+                        "Vanilla Typed",
+                        "Custom"
                     ],
                     "Value": 1,
                     "Name": "TextureArchive",

@@ -41,7 +41,26 @@ namespace VanillaArmorReplacer
         {
             set
             {
-                if (VanillaArmorReplacer.Instance.textureArchive == 1) //Vanilla textures with Leather and Chain
+                if (VanillaArmorReplacer.Instance.textureArchive == 2 && (nativeMaterialValue == (int)ArmorMaterialTypes.Leather || nativeMaterialValue == (int)ArmorMaterialTypes.Chain))
+                {
+                    base.CurrentVariant = 0;
+                    if (NativeMaterialValue == (int)ArmorMaterialTypes.Leather)
+                    {
+                        if (!HasCustomEnchantments && !HasLegacyEnchantments)
+                            shortName = VanillaArmorReplacer.Instance.nameCuirassLeather;
+                    }
+                    else if (NativeMaterialValue == (int)ArmorMaterialTypes.Chain)
+                    {
+                        if (!HasCustomEnchantments && !HasLegacyEnchantments)
+                            shortName = VanillaArmorReplacer.Instance.nameCuirassChain;
+                    }
+                    else
+                    {
+                        if (!HasCustomEnchantments && !HasLegacyEnchantments)
+                            shortName = VanillaArmorReplacer.Instance.nameCuirassPlate;
+                    }
+                }
+                else if (VanillaArmorReplacer.Instance.textureArchive == 1) //Vanilla textures with Leather and Chain
                 {
                     if (NativeMaterialValue == (int)ArmorMaterialTypes.Leather)
                     {
@@ -90,6 +109,65 @@ namespace VanillaArmorReplacer
                         }
                     }
                 }
+            }
+        }
+
+        //set gender and phenotype
+        public override int InventoryTextureArchive
+        {
+            get
+            {
+                if (VanillaArmorReplacer.Instance.textureArchive == 2 && (nativeMaterialValue == (int)ArmorMaterialTypes.Leather || nativeMaterialValue == (int)ArmorMaterialTypes.Chain))
+                {
+                    int offset = PlayerTextureArchive - ItemBuilder.firstFemaleArchive;
+
+                    if (offset < 4)
+                        return 112354;
+                    else
+                        return 112350;
+                }
+                else
+                    return base.InventoryTextureArchive;
+            }
+        }
+
+        public override int InventoryTextureRecord
+        {
+            get
+            {
+                if (VanillaArmorReplacer.Instance.textureArchive == 2 && (nativeMaterialValue == (int)ArmorMaterialTypes.Leather || nativeMaterialValue == (int)ArmorMaterialTypes.Chain))
+                {
+                    int offset = 1;
+
+                    if (nativeMaterialValue == (int)ArmorMaterialTypes.Daedric)
+                        offset += 1100;
+                    else if (nativeMaterialValue == (int)ArmorMaterialTypes.Orcish)
+                        offset += 1000;
+                    else if (nativeMaterialValue == (int)ArmorMaterialTypes.Ebony)
+                        offset += 900;
+                    else if (nativeMaterialValue == (int)ArmorMaterialTypes.Adamantium)
+                        offset += 800;
+                    else if (nativeMaterialValue == (int)ArmorMaterialTypes.Mithril)
+                        offset += 700;
+                    else if (nativeMaterialValue == (int)ArmorMaterialTypes.Dwarven)
+                        offset += 600;
+                    else if (nativeMaterialValue == (int)ArmorMaterialTypes.Elven)
+                        offset += 500;
+                    else if (nativeMaterialValue == (int)ArmorMaterialTypes.Silver)
+                        offset += 400;
+                    else if (nativeMaterialValue == (int)ArmorMaterialTypes.Steel)
+                        offset += 300;
+                    else if (nativeMaterialValue == (int)ArmorMaterialTypes.Iron)
+                        offset += 200;
+                    else if (nativeMaterialValue == (int)ArmorMaterialTypes.Chain)
+                        offset += 100;
+
+                    dyeColor = DyeColors.Silver;
+
+                    return offset;
+                }
+                else
+                    return base.InventoryTextureRecord;
             }
         }
 
