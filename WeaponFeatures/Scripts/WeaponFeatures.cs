@@ -1,5 +1,7 @@
 using System;
+using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -11,9 +13,12 @@ using DaggerfallWorkshop.Game.Items;
 using DaggerfallWorkshop.Game.Formulas;
 using DaggerfallWorkshop.Game.MagicAndEffects;
 using DaggerfallWorkshop.Game.Serialization;
+using DaggerfallWorkshop.Game.UserInterface;
+using DaggerfallWorkshop.Game.UserInterfaceWindows;
 using DaggerfallWorkshop.Game.Utility;
 using DaggerfallWorkshop.Game.Utility.ModSupport;
 using DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings;
+using DaggerfallWorkshop.Utility.AssetInjection;
 using DaggerfallConnect;
 
 public class WeaponFeatures : MonoBehaviour
@@ -29,6 +34,8 @@ public class WeaponFeatures : MonoBehaviour
     }
 
     public static WeaponFeatures Instance;
+
+    bool modCompatibilityChecked;
 
     //settings
     KeyCode attackKeyCode = KeyCode.Mouse1;
@@ -49,6 +56,8 @@ public class WeaponFeatures : MonoBehaviour
     float feedbackDodgeScale = 1;
     bool feedbackHurt;
     float feedbackHurtScale = 1;
+
+    bool meleeHoldAndRelease = true;
 
     //configuration
     Vector2 statMelee;
@@ -78,6 +87,10 @@ public class WeaponFeatures : MonoBehaviour
     WeaponManager weaponManager;
     FPSWeapon ScreenWeapon;
 
+    Mod SphincterVisionAttacks;
+    Camera skyCamera;
+
+    bool blockHoldInput;
     bool isAttacking;
     bool hasAttacked;
 
@@ -95,21 +108,345 @@ public class WeaponFeatures : MonoBehaviour
     bool reloaded = true;
     float reloadTime = 10;
     float reloadTimer = 0;
-    float reloadSizeMod
+    float reloadTimeMod
     {
         get
         {
-            if ((Weapons)ScreenWeapon.SpecificWeapon.TemplateIndex == Weapons.Short_Bow)
-                return 0.8f;
+            if ((Weapons)ScreenWeapon.SpecificWeapon.TemplateIndex == Weapons.Long_Bow)
+                return 1.5f;
             else
-                return 1.0f;
+                return 1f;
         }
     }
 
     float drawTime = 10;
     float drawTimer;
 
+    int archery;    //0 = vanilla, 1 = global, 2 = typed
+    float archeryMissileRadius;
+    float archeryMissileAngle;
+    float archeryMissileAngleTyped
+    {
+        get
+        {
+            if (archery == 2)
+            {
+                if ((Weapons)ScreenWeapon.SpecificWeapon.TemplateIndex == Weapons.Long_Bow)
+                    return archeryMissileAngle/2;
+                else
+                    return archeryMissileAngle;
+            }
+            else
+                return archeryMissileAngle;
+        }
+    }
+    float archeryMissileSpeed;
+    float archeryMissileSpeedMod = 1;
+    float archeryMissileSpeedTyped
+    {
+        get
+        {
+            if (archery == 2)
+            {
+                if ((Weapons)ScreenWeapon.SpecificWeapon.TemplateIndex == Weapons.Long_Bow)
+                    return archeryMissileSpeed * archeryMissileSpeedMod * 2;
+                else
+                    return archeryMissileSpeed * archeryMissileSpeedMod;
+            }
+            else
+                return archeryMissileSpeed * archeryMissileSpeedMod;
+        }
+    }
+    float archeryMissileSpread;
+    float archeryMissileSpreadTyped
+    {
+        get
+        {
+            if (archery == 2)
+            {
+                if ((Weapons)ScreenWeapon.SpecificWeapon.TemplateIndex == Weapons.Long_Bow)
+                    return archeryMissileSpread/2;
+                else
+                    return archeryMissileSpread;
+            }
+            else
+                return archeryMissileSpread;
+        }
+    }
+
+    float archeryMissileGravity;
+    float archeryMissileGravityMod = 1;
+    float archeryMissileGravityTyped
+    {
+        get
+        {
+            return archeryMissileGravity * archeryMissileGravityMod;
+        }
+    }
+    bool archeryTrajectory;
+    float archeryDrawZoom;
+    float archeryDrawZoomTyped
+    {
+        get
+        {
+            if (archery == 2)
+            {
+                if ((Weapons)ScreenWeapon.SpecificWeapon.TemplateIndex == Weapons.Long_Bow)
+                    return archeryDrawZoom * 2;
+                else
+                    return archeryDrawZoom;
+            }
+            else
+                return archeryDrawZoom;
+        }
+    }
+    float archeryDrawZoomTime;
+    float archeryDrawZoomDelay;
+    bool archeryOverdraw;
+    float archeryOverdrawTime;
+    float archeryOverdrawTimeTyped
+    {
+        get
+        {
+            if (powerAttacks)
+            {
+                return powerMaxDrawTime/4;
+            }
+            else
+            {
+                if (archery == 2)
+                {
+                    if ((Weapons)ScreenWeapon.SpecificWeapon.TemplateIndex == Weapons.Long_Bow)
+                        return archeryOverdrawTime * 2;
+                    else
+                        return archeryOverdrawTime;
+                }
+                else
+                    return archeryOverdrawTime;
+            }
+        }
+    }
+
+    LineRenderer lineRenderer;
+    List<Vector3> positions;
+
+    int archeryDefaultModelID = 99800;
+    int archeryDefaultItemTemplate = 131;
+
+    public int archeryCustomModelID = 0;
+    public int archeryCustomItemTemplate = 0;
+    int archeryModelID
+    {
+        get
+        {
+            if (archeryCustomModelID != 0)
+                return archeryCustomModelID;
+            else
+                return archeryDefaultModelID;
+        }
+    }
+    int archeryItemTemplate
+    {
+        get
+        {
+            if (archeryCustomItemTemplate != 0)
+                return archeryCustomItemTemplate;
+            else
+                return archeryDefaultItemTemplate;
+        }
+    }
+    int archeryBonusAccuracy = 0;
+    int archeryBonusDamage = 0;
+
+    public bool archeryAutoReset = true;
+
+    bool archeryAmmoCounter = true;
+    int archeryAmmoCount;
+    string archeryAmmoLabel;
+    float archeryAmmoLabelLength;
+
+    TextLabel archeryAmmoCounterTextLabel = new TextLabel();
+    Color archeryAmmoCounterColorDefault = new Color(0.6f, 0.6f, 0.6f);
+    Color archeryAmmoCounterColorCustom = Color.black;
+    Color archeryAmmoCounterColor
+    {
+        get
+        {
+            if (archeryAmmoCounterColorCustom != Color.black)
+                return archeryAmmoCounterColorCustom;
+            else
+                return archeryAmmoCounterColorDefault;
+        }
+    }
+
+    bool archeryShowAmmoCounter
+    {
+        get
+        {
+            if (archeryAmmoCounter && !DaggerfallUnity.Settings.LargeHUD && !GameManager.Instance.WeaponManager.Sheathed && ScreenWeapon.WeaponType == WeaponTypes.Bow)
+                return true;
+            else
+                return false;
+        }
+    }
+
+    const int nativeScreenWidth = 320;
+    const int nativeScreenHeight = 200;
+
+    Rect screenRect;
+    float ScaleX;
+    float ScaleY;
+
+    //Weapon Power
+    bool powerAttacks;
+    bool overrideRegistered;
+
+    int powerAccuracy;
+    int powerDamage;
+
+    float powerCurrent = 0;
+
+    public float LastPower
+    {
+        get
+        {
+            return lastPower;
+        }
+    }
+
+    float lastPower = 0;
+
+    int powerMax
+    {
+        get
+        {
+            return Mathf.CeilToInt(
+                100f *
+                ((float)playerEntity.Stats.LiveStrength / 50f) +  //50% @ 25 stat, 100% @ 50 stat, 200% @ 100 stat
+                ((float)playerEntity.Skills.GetLiveSkillValue(DFCareer.Skills.CriticalStrike) / 2f)    //+50% @ 100 skill
+                );
+        }
+    }
+
+    int powerMin
+    {
+        get
+        {
+            return Mathf.CeilToInt(
+                -100 +
+                100f * ((float)playerEntity.Stats.LiveStrength / 50f) +  //50% @ 25 stat, 100% @ 50 stat, 200% @ 100 stat
+                50f * ((float)playerEntity.Stats.LiveAgility / 50f)  //50% @ 25 stat, 100% @ 50 stat, 200% @ 100 stat
+                );
+        }
+    }
+
+    float powerMaxDrawTime
+    {
+        get
+        {
+            return (100/powerSpeed) +
+                ((float)playerEntity.Stats.LiveStrength / 25f) +
+                ((float)playerEntity.Skills.GetLiveSkillValue(DFCareer.Skills.Archery) / 25f);
+        }
+    }
+
+    float powerSpeed
+    {
+        get
+        {
+            short weaponSkillID = (short)DFCareer.Skills.HandToHand;
+
+            DaggerfallUnityItem weapon = GameManager.Instance.RightHandWeapon.SpecificWeapon;
+            if (weapon != null)
+            {
+                weaponSkillID = weapon.GetWeaponSkillIDAsShort();
+
+                if (GameManager.Instance.RightHandWeapon.WeaponType == WeaponTypes.Bow)
+                {
+                    return Mathf.CeilToInt(
+                        ((float)playerEntity.Skills.GetLiveSkillValue(weaponSkillID)) *
+                        ((float)playerEntity.Stats.LiveStrength/50)
+                        );
+                }
+            }
+
+            return Mathf.CeilToInt(
+                ((float)playerEntity.Skills.GetLiveSkillValue(weaponSkillID)) *
+                Mathf.Clamp(2-(weapon.EffectiveUnitWeightInKg() / 15f),0f,1.9f)
+                );
+        }
+    }
+
+    float powerCost
+    {
+        get
+        {
+            return Mathf.CeilToInt(
+                100 -
+                ((float)playerEntity.Stats.LiveAgility / 2)
+                );
+        }
+    }
+
+    bool powerDrawIcon
+    {
+        get
+        {
+            if (powerIconStyle == 1)
+            {
+                if (GameManager.Instance.WeaponManager.Sheathed ||
+                    GameManager.Instance.WeaponManager.EquipCountdownRightHand > 0 ||
+                    GameManager.Instance.WeaponManager.EquipCountdownLeftHand > 0)
+                    return false;
+
+                if (ScreenWeapon.WeaponType == WeaponTypes.Bow)
+                {
+                    if (DaggerfallUnity.Settings.BowDrawback)
+                    {
+                        if (ScreenWeapon.WeaponState != WeaponStates.StrikeUp && ScreenWeapon.GetCurrentFrame() != 3)
+                            return false;
+                    }
+                }
+                else
+                {
+                    if (ScreenWeapon.IsAttacking())
+                        return false;
+                }
+            }
+
+            return true;
+        }
+    }
+    bool powerMessage;
+
+    int powerIconStyle = 0; //0 = none, 1 = crosshairs+position, 2 = widget+tint
+    float powerIconScale = 1;
+
+    Texture2D powerIconCrosshairTexture;
+    Rect powerIconCrosshairLeftRect;
+    Rect powerIconCrosshairRightRect;
+    float powerIconCrosshairDistance;
+
+    Texture2D powerIconWidgetTexture;
+    Texture2D powerIconWidgetBaseTexture;
+    Vector2 powerIconWidgetOffset;
+    Rect powerIconWidgetRect;
+    Rect powerIconWidgetBaseRect;
+    Color powerIconWidgetColorCurrent;
+    Color powerIconWidgetColorMin = Color.red;
+    Color powerIconWidgetColorMax = Color.green;
+
+    bool lastUsedHand;
+
     IEnumerator conflict;
+
+    //events
+    public event Action<int> OnMissileChange;
+    public event Action<GameObject, DaggerfallUnityItem, float> OnMissileSpawn;
+    public event Action<GameObject, DaggerfallUnityItem ,GameObject, Vector3> OnMissileHit;
+
+    //reflection
+    FieldInfo LastBowUsed;
 
     //Vanilla attack control stuff
     private Gesture _gesture;
@@ -205,8 +542,15 @@ public class WeaponFeatures : MonoBehaviour
     {
         Instance = this;
 
+        //load textures
+        TextureReplacement.TryImportTexture(9638, 0, 0, out powerIconCrosshairTexture);
+        TextureReplacement.TryImportTexture(9638, 1, 0, out powerIconWidgetTexture);
+        TextureReplacement.TryImportTexture(9638, 1, 1, out powerIconWidgetBaseTexture);
+
         layerMask = ~(1 << LayerMask.NameToLayer("Player"));
         layerMask = layerMask & ~(1 << LayerMask.NameToLayer("Ignore Raycast"));
+
+        skyCamera = GameManager.Instance.SkyRig.SkyCamera;
 
         playerCamera = GameManager.Instance.MainCamera;
         playerController = GameManager.Instance.PlayerController;
@@ -215,16 +559,26 @@ public class WeaponFeatures : MonoBehaviour
         weaponManager = GameManager.Instance.WeaponManager;
         ScreenWeapon = GameManager.Instance.WeaponManager.ScreenWeapon;
 
+        LastBowUsed = weaponManager.GetType().GetField("lastBowUsed", BindingFlags.NonPublic | BindingFlags.Public | BindingFlags.Static | BindingFlags.IgnoreCase | BindingFlags.Instance);
+
         _gesture = new Gesture();
         _longestDim = Math.Max(Screen.width, Screen.height);
 
-        mod.LoadSettingsCallback = LoadSettings;
-        mod.LoadSettings();
+        //setup trajectory line renderer
+        lineRenderer = gameObject.AddComponent<LineRenderer>();
+        lineRenderer.widthMultiplier = 0.1f;
+        lineRenderer.material = new Material(Shader.Find("Legacy Shaders/Particles/Alpha Blended Premultiply"));
+        Color startColor = new Color(1, 1, 1, 0);
+        Color endColor = new Color(1, 1, 1, 1);
+        lineRenderer.startColor = startColor;
+        lineRenderer.endColor = endColor;
+        lineRenderer.enabled = false;
 
-        ModCompatibilityChecking();
+        mod.LoadSettingsCallback = LoadSettings;
 
         SaveLoadManager.OnLoad += OnLoad;
         StartGameBehaviour.OnNewGame += OnNewGame;
+        StartGameBehaviour.OnStartMenu += OnStartMenu;
 
         mod.MessageReceiver = MessageReceiver;
         mod.IsReady = true;
@@ -236,11 +590,6 @@ public class WeaponFeatures : MonoBehaviour
         {
             attackKeyCode = SetKeyFromText(settings.GetString("Controls", "AttackInput"));
             meleeMode = settings.GetValue<int>("Controls", "MeleeMode");
-            bowMode = settings.GetValue<int>("Controls", "BowMode");
-            if (bowMode == 0)
-                DaggerfallUnity.Settings.BowDrawback = false;
-            else
-                DaggerfallUnity.Settings.BowDrawback = true;
             meleeModeVanillaMouseDampenMod = 1-settings.GetValue<float>("Controls", "VanillaMeleeViewDampenStrength");
         }
         if (change.HasChanged("HitDetection"))
@@ -254,6 +603,19 @@ public class WeaponFeatures : MonoBehaviour
             cleaveValueMultiplier = settings.GetValue<float>("HitDetection", "StartingCleaveMultiplier");
             cleaveWeightMultiplier = settings.GetValue<float>("HitDetection", "TargetWeightMultiplier");
         }
+        if (change.HasChanged("PowerAttacks"))
+        {
+            powerAttacks = settings.GetValue<bool>("PowerAttacks", "Enable");
+            powerAccuracy = settings.GetValue<int>("PowerAttacks", "AccuracyScaling");
+            powerDamage = settings.GetValue<int>("PowerAttacks", "Damage");
+            powerIconStyle = settings.GetValue<int>("PowerAttacks", "Indicator");
+            powerIconScale = settings.GetValue<float>("PowerAttacks", "IndicatorScale");
+            powerIconCrosshairDistance = settings.GetValue<float>("PowerAttacks", "CrosshairDistance");
+            powerIconWidgetOffset = new Vector2(settings.GetTupleFloat("PowerAttacks", "WidgetOffset").First, settings.GetTupleFloat("PowerAttacks", "WidgetOffset").Second);
+            powerMessage = settings.GetValue<bool>("PowerAttacks", "DebugMessages");
+            powerIconWidgetColorMin = settings.GetColor("PowerAttacks", "WidgetColorMin");
+            powerIconWidgetColorMax = settings.GetColor("PowerAttacks", "WidgetColorMax");
+        }
         if (change.HasChanged("Feedback"))
         {
             feedbackPause = settings.GetValue<bool>("Feedback", "PauseEnemyParries");
@@ -262,6 +624,21 @@ public class WeaponFeatures : MonoBehaviour
             feedbackDodgeScale = settings.GetValue<float>("Feedback", "DodgeDistanceScale");
             feedbackHurt = settings.GetValue<bool>("Feedback", "SavingThrowKnockback");
             feedbackHurtScale = settings.GetValue<float>("Feedback", "KnockbackScale");
+        }
+        if (change.HasChanged("ImprovedArchery"))
+        {
+            archery = settings.GetValue<int>("ImprovedArchery", "Mode");
+            archeryMissileRadius = settings.GetValue<float>("ImprovedArchery", "CollisionRadius");
+            archeryMissileSpeed = settings.GetValue<float>("ImprovedArchery", "Speed") * 35f;
+            archeryMissileAngle = settings.GetValue<float>("ImprovedArchery", "AngleOffset");
+            archeryMissileSpread = settings.GetValue<float>("ImprovedArchery", "MaxDispersion");
+            archeryMissileGravity = settings.GetValue<float>("ImprovedArchery", "Gravity");
+            archeryTrajectory = settings.GetValue<bool>("ImprovedArchery", "ShowTrajectory");
+            archeryDrawZoom = settings.GetValue<float>("ImprovedArchery", "DrawZoomMagnification");
+            archeryDrawZoomTime = settings.GetValue<float>("ImprovedArchery", "DrawZoomDuration");
+            archeryDrawZoomDelay = settings.GetValue<float>("ImprovedArchery", "DrawZoomDelay");
+            archeryOverdraw = settings.GetValue<bool>("ImprovedArchery", "DrawScaling");
+            archeryOverdrawTime = settings.GetValue<float>("ImprovedArchery", "DrawScaleDuration");
         }
         if (change.HasChanged("Variables"))
         {
@@ -285,6 +662,34 @@ public class WeaponFeatures : MonoBehaviour
             statArchersAxe = new Vector2(settings.GetTupleFloat("Variables", "Archer'sAxe").First,settings.GetTupleFloat("Variables", "Archer'sAxe").Second);
             statLightFlail = new Vector2(settings.GetTupleFloat("Variables", "LightFlail").First,settings.GetTupleFloat("Variables", "LightFlail").Second);
         }
+
+        if (!overrideRegistered)
+        {
+
+            if (powerAttacks || archery > 0)
+            {
+                //Damage and Accuracy scaling based on Power and Improved Archery overrides
+                FormulaHelper.RegisterOverride(mod, "AdjustWeaponHitChanceMod", (Func<DaggerfallEntity, DaggerfallEntity, int, int, DaggerfallUnityItem, int>)AdjustWeaponHitChanceMod);
+                FormulaHelper.RegisterOverride(mod, "AdjustWeaponAttackDamage", (Func<DaggerfallEntity, DaggerfallEntity, int, int, DaggerfallUnityItem, int>)AdjustWeaponAttackDamage);
+
+                if (powerAttacks && powerDamage == 2)
+                {
+                    //Deterministic attack damage based on Power
+                    if (SphincterVisionAttacks != null)
+                    {
+                        FormulaHelper.RegisterOverride(mod, "CalculateWeaponAttackDamage", (Func<DaggerfallEntity, DaggerfallEntity, int, int, DaggerfallUnityItem, int>)CalculateWeaponAttackDamage_SphincterVision);
+                        FormulaHelper.RegisterOverride(mod, "CalculateHandToHandAttackDamage", (Func<DaggerfallEntity, DaggerfallEntity, int, bool, int>)CalculateHandToHandAttackDamage_SphincterVision);
+                    }
+                    else
+                    {
+                        FormulaHelper.RegisterOverride(mod, "CalculateWeaponAttackDamage", (Func<DaggerfallEntity, DaggerfallEntity, int, int, DaggerfallUnityItem, int>)CalculateWeaponAttackDamage);
+                        FormulaHelper.RegisterOverride(mod, "CalculateHandToHandAttackDamage", (Func<DaggerfallEntity, DaggerfallEntity, int, bool, int>)CalculateHandToHandAttackDamage);
+                    }
+                }
+
+                overrideRegistered = true;
+            }
+        }
     }
 
     void MessageReceiver(string message, object data, DFModMessageCallback callBack)
@@ -299,25 +704,225 @@ public class WeaponFeatures : MonoBehaviour
                 callBack?.Invoke("getWeaponReach", GetWeaponReach());
                 break;
 
+            case "overrideMissile":
+                OverrideMissileProperties(data as object[]);
+                break;
+
+            case "resetMissile":
+                ResetMissileProperties();
+                break;
+
+            case "onMissileChange":
+                OnMissileChange += data as Action<int>;
+                break;
+
+            case "onMissileSpawn":
+                OnMissileSpawn += data as Action<GameObject,DaggerfallUnityItem,float>;
+                break;
+
+            case "onMissileHit":
+                OnMissileHit += data as Action<GameObject, DaggerfallUnityItem, GameObject, Vector3>;
+                break;
+
             default:
                 Debug.LogErrorFormat("{0}: unknown message received ({1}).", this, message);
                 break;
         }
     }
 
+    private void OnGUI()
+    {
+        if (GameManager.IsGamePaused || SaveLoadManager.Instance.LoadInProgress)
+            return;
+
+        GUI.depth = -10;
+
+        if (DaggerfallUI.Instance.CustomScreenRect != null)
+            screenRect = DaggerfallUI.Instance.CustomScreenRect.Value;
+        else
+            screenRect = new Rect(0, 0, Screen.width, Screen.height);
+        ScaleX = (float)screenRect.width / (float)nativeScreenWidth;
+        ScaleY = (float)screenRect.height / (float)nativeScreenHeight;
+
+        if (archeryShowAmmoCounter)
+        {
+            if (!archeryAmmoCounterTextLabel.Enabled)
+            {
+                archeryAmmoCounterTextLabel.Enabled = true;
+                UpdateAmmoCount();
+            }
+
+            string message = archeryAmmoLabel;
+
+            //place it next to the vitals bar
+            Vector2 arrowLabelPos = new Vector2(screenRect.x + (screenRect.width * 0.02f) + DaggerfallUI.Instance.DaggerfallHUD.HUDVitals.Rectangle.width, screenRect.y + (screenRect.height*0.75f) - DaggerfallUI.Instance.DaggerfallHUD.HUDVitals.Rectangle.height - DaggerfallUI.Instance.DaggerfallHUD.HUDVitals.Parent.Position.y);
+            Vector2 arrowLabelScale = new Vector2(ScaleX, ScaleY);
+
+            if (Event.current.type == EventType.Repaint)
+            {
+                DaggerfallUI.DefaultFont.DrawText(message, arrowLabelPos, arrowLabelScale, archeryAmmoCounterColor, Color.black, Vector2.one);
+            }
+        }
+        else
+        {
+            if (archeryAmmoCounterTextLabel.Enabled)
+                archeryAmmoCounterTextLabel.Enabled = false;
+        }
+
+        if (powerAttacks)
+        {
+            float scale = powerIconScale;
+
+            //draw Power indicator
+            if (powerDrawIcon && powerIconStyle > 0)
+            {
+                if (powerIconStyle == 2)
+                {
+                    powerIconWidgetBaseRect = new Rect(
+                        new Vector2(screenRect.x + (screenRect.width * powerIconWidgetOffset.x) - (powerIconWidgetBaseTexture.width * 0.5f * scale * ScaleX), screenRect.y + (screenRect.height * powerIconWidgetOffset.y) - (powerIconWidgetBaseTexture.height * scale * 0.5f * ScaleY)),
+                        new Vector2(powerIconWidgetBaseTexture.width * scale * ScaleX, powerIconWidgetBaseTexture.height * scale * ScaleY)
+                        );
+
+                    powerIconWidgetRect = new Rect(
+                        new Vector2(screenRect.x + (screenRect.width * powerIconWidgetOffset.x) - (powerIconWidgetTexture.width * 0.5f * scale * ScaleX), screenRect.y + (screenRect.height * powerIconWidgetOffset.y) - (powerIconWidgetTexture.height * scale * 0.5f * ScaleY)),
+                        new Vector2(powerIconWidgetTexture.width * scale * ScaleX, powerIconWidgetTexture.height * scale * ScaleY)
+                        );
+
+                    if (Event.current.type == EventType.Repaint)
+                    {
+                        DaggerfallUI.DrawTexture(powerIconWidgetBaseRect, powerIconWidgetBaseTexture, ScaleMode.StretchToFill, true, Color.white);
+                        DaggerfallUI.DrawTexture(powerIconWidgetRect, powerIconWidgetTexture, ScaleMode.StretchToFill, true, powerIconWidgetColorCurrent);
+                    }
+                }
+                else
+                {
+                    scale *= 0.5f;
+
+                    powerIconCrosshairLeftRect = new Rect(
+                        new Vector2(screenRect.x + ((screenRect.width * 0.475f) - (screenRect.width * 0.125f * powerIconCrosshairDistance)) + ((screenRect.width * 0.125f * powerIconCrosshairDistance) * (powerCurrent / 100)), screenRect.y + (screenRect.height * 0.5f) - (powerIconCrosshairTexture.height * scale * 0.5f * ScaleY)),
+                        new Vector2(-powerIconCrosshairTexture.width * scale * ScaleX, powerIconCrosshairTexture.height * scale * ScaleY)
+                        );
+                    powerIconCrosshairRightRect = new Rect(
+                        new Vector2(screenRect.x + ((screenRect.width * 0.525f) + (screenRect.width * 0.125f * powerIconCrosshairDistance)) - ((screenRect.width * 0.125f * powerIconCrosshairDistance) * (powerCurrent / 100)), screenRect.y + (screenRect.height * 0.5f) - (powerIconCrosshairTexture.height * scale * 0.5f * ScaleY)),
+                        new Vector2(powerIconCrosshairTexture.width * scale * ScaleX, powerIconCrosshairTexture.height * scale * ScaleY)
+                        );
+
+                    if (Event.current.type == EventType.Repaint)
+                    {
+                        DaggerfallUI.DrawTexture(powerIconCrosshairLeftRect, powerIconCrosshairTexture, ScaleMode.StretchToFill, true, Color.white);
+                        DaggerfallUI.DrawTexture(powerIconCrosshairRightRect, powerIconCrosshairTexture, ScaleMode.StretchToFill, true, Color.white);
+                    }
+                }
+            }
+        }
+    }
+
+    void SetPower()
+    {
+        lastPower = Mathf.Lerp(powerMin,powerMax,powerCurrent/100)/100;
+        powerCurrent -= powerCost;
+
+        Debug.Log("TOME OF BATTLE - POWER ATTACKS - MAX DRAW TIME IS " + powerMaxDrawTime.ToString() + " SECONDS!");
+        Debug.Log("TOME OF BATTLE - POWER ATTACKS - POWER SPEED IS " + powerSpeed.ToString("0") + "%!");
+        Debug.Log("TOME OF BATTLE - POWER ATTACKS - MIN POWER IS " + powerMin.ToString("0") + "%!");
+        Debug.Log("TOME OF BATTLE - POWER ATTACKS - MAX POWER IS " + powerMax.ToString("0") + "%!");
+        Debug.Log("TOME OF BATTLE - POWER ATTACKS - LAST POWER IS " + (LastPower*100).ToString("0") + "%!");
+    }
+
+    void UpdatePower()
+    {
+        if (GameManager.IsGamePaused)
+            return;
+
+        if (GameManager.Instance.WeaponManager.Sheathed || GameManager.Instance.WeaponManager.EquipCountdownRightHand > 0 || GameManager.Instance.WeaponManager.EquipCountdownLeftHand > 0 || lastUsedHand != GameManager.Instance.WeaponManager.UsingRightHand)
+        {
+            powerCurrent = 0;
+            lastUsedHand = GameManager.Instance.WeaponManager.UsingRightHand;
+            powerIconWidgetColorCurrent = Color.black;
+            return;
+        }
+
+        if (powerCurrent < 0)
+            powerCurrent = 0;
+
+        if (ScreenWeapon.WeaponType == WeaponTypes.Bow)
+        {
+            if (DaggerfallUnity.Settings.BowDrawback)
+            {
+                //build power at a constant rate while bow is drawn, then decay after reaching max power
+                if (ScreenWeapon.WeaponState == WeaponStates.StrikeUp || ScreenWeapon.GetCurrentFrame() == 3)
+                {
+                    //powerDrawIcon = true;
+                    if (powerCurrent < 100 && drawTimer < powerMaxDrawTime)
+                    {
+                        powerCurrent += Time.deltaTime * powerSpeed;
+                    }
+                    else if (drawTimer < powerMaxDrawTime)
+                    {
+                        powerCurrent = 100;
+                    }
+                    else if (powerCurrent > 0)
+                    {
+                        powerCurrent -= Time.deltaTime * powerSpeed;
+                    }
+                }
+            }
+            else
+            {
+                //oscillate power while not attacking
+                powerCurrent = Mathf.Lerp(0,100,0.5f + (Mathf.Sin(Time.time * (powerSpeed*0.05f))*0.5f));
+            }
+        }
+        else
+        {
+            //build power at a constant rate while not attacking
+            if (!ScreenWeapon.IsAttacking())
+            {
+                if (powerCurrent < 100)
+                    powerCurrent += Time.deltaTime * powerSpeed;
+                else
+                    powerCurrent = 100;
+            }
+        }
+
+        powerIconWidgetColorCurrent = Color.Lerp(powerIconWidgetColorMin, powerIconWidgetColorMax, Mathf.Round((powerCurrent / 100) * 10) / 10);
+    }
+
     private void LateUpdate()
     {
-        //Typed Bow mode
-        if (bowMode == 2)
-        {
-            if (ScreenWeapon.WeaponType == WeaponTypes.Bow)
-            {
-                if ((Weapons)ScreenWeapon.SpecificWeapon.TemplateIndex == Weapons.Long_Bow && !DaggerfallUnity.Settings.BowDrawback)
-                    DaggerfallUnity.Settings.BowDrawback = true;
+        if (powerAttacks)
+            UpdatePower();
 
-                if ((Weapons)ScreenWeapon.SpecificWeapon.TemplateIndex == Weapons.Short_Bow && DaggerfallUnity.Settings.BowDrawback)
-                    DaggerfallUnity.Settings.BowDrawback = false;
+        // Handle bow with no arrows
+        ItemGroups itemGroup = ItemGroups.Weapons;
+        if (archeryCustomItemTemplate != 0)
+            itemGroup = ItemGroups.UselessItems2;
+
+        if (!GameManager.Instance.WeaponManager.Sheathed && ScreenWeapon.WeaponType == WeaponTypes.Bow && GameManager.Instance.PlayerEntity.Items.GetItem(itemGroup, archeryItemTemplate, allowQuestItem: false) == null)
+        {
+            if (archeryCustomItemTemplate != 0)
+            {
+                if (archeryAutoReset)
+                    ResetMissileProperties();
+                else
+                {
+                    GameManager.Instance.WeaponManager.SheathWeapons();
+                    DaggerfallUI.SetMidScreenText(TextManager.Instance.GetLocalizedText("youHaveNoArrows"));
+                }
             }
+            else
+            {
+                GameManager.Instance.WeaponManager.SheathWeapons();
+                DaggerfallUI.SetMidScreenText(TextManager.Instance.GetLocalizedText("youHaveNoArrows"));
+            }
+        }
+
+        if (GameManager.IsGamePaused || !GameManager.Instance.IsPlayingGame() || !GameManager.Instance.IsPlayerOnHUD)
+            blockHoldInput = true;
+        else
+        {
+            if (!InputManager.Instance.GetKey(attackKeyCode))
+                blockHoldInput = false;
         }
 
         if (!reloaded)
@@ -344,12 +949,24 @@ public class WeaponFeatures : MonoBehaviour
             {
                 hasAttacked = false;
                 isAttacking = true;
+
+                if (powerAttacks)
+                {
+                    if (ScreenWeapon.WeaponType != WeaponTypes.Bow)
+                        SetPower();
+                }
             }
 
             if (!hasAttacked)
             {
                 if (ScreenWeapon.GetCurrentFrame() >= ScreenWeapon.GetHitFrame())
                 {
+                    if (powerAttacks)
+                    {
+                        if (ScreenWeapon.WeaponType == WeaponTypes.Bow)
+                            SetPower();
+                    }
+
                     if (ScreenWeapon.WeaponType != WeaponTypes.Bow)
                         StartCoroutine(DoCleaveOnNextFrame());
                     else
@@ -367,16 +984,37 @@ public class WeaponFeatures : MonoBehaviour
                 //do bow stuff here
                 if (DaggerfallUnity.Settings.BowDrawback)
                 {
+
                     if (drawTimer > drawTime || InputManager.Instance.ActionStarted(InputManager.Actions.ActivateCenterObject))
                     {
                         ScreenWeapon.ChangeWeaponState(WeaponStates.Idle);
                         reloaded = false;
-                        reloadTime = FormulaHelper.GetBowCooldownTime(playerEntity) * reloadSizeMod *0.5f;
+                        reloadTime = FormulaHelper.GetBowCooldownTime(playerEntity) * reloadTimeMod * 0.5f;
                         reloadTimer = 0;
+                        blockHoldInput = true;
+
+                        if (powerAttacks)
+                            powerCurrent = 0;
                     }
                     else if (!InputManager.Instance.GetKey(attackKeyCode))
                     {
                         ScreenWeapon.OnAttackDirection(WeaponManager.MouseDirections.Down);
+                    }
+                    else
+                    {
+                        drawTimer += Time.deltaTime;
+
+                        if (archeryDrawZoom > 1)
+                        {
+                            float zoom = DaggerfallUnity.Settings.FieldOfView / archeryDrawZoomTyped;
+                            if (playerCamera.fieldOfView != zoom)
+                            {
+                                playerCamera.fieldOfView = Mathf.Lerp(DaggerfallUnity.Settings.FieldOfView, zoom, (drawTimer - archeryDrawZoomDelay) / archeryDrawZoomTime);
+                            }
+                        }
+
+                        if (archeryTrajectory && archeryMissileGravity > 0)
+                            DrawTrajectory();
                     }
                 }
             }
@@ -402,6 +1040,24 @@ public class WeaponFeatures : MonoBehaviour
             }
             else
             {
+                if (ScreenWeapon.WeaponType == WeaponTypes.Bow)
+                {
+                    //do bow stuff here
+                    if (DaggerfallUnity.Settings.BowDrawback)
+                    {
+                        if (archeryDrawZoom > 1)
+                        {
+                            if (playerCamera.fieldOfView != DaggerfallUnity.Settings.FieldOfView)
+                            {
+                                playerCamera.fieldOfView = Mathf.MoveTowards(playerCamera.fieldOfView, DaggerfallUnity.Settings.FieldOfView, DaggerfallUnity.Settings.FieldOfView * Time.deltaTime);
+                            }
+                        }
+
+                        if (lineRenderer.enabled)
+                            lineRenderer.enabled = false;
+                    }
+                }
+
                 //reset swing count after interval
                 if (swingTimer < swingTime)
                     swingTimer += Time.deltaTime;
@@ -439,49 +1095,45 @@ public class WeaponFeatures : MonoBehaviour
                                     if (playerMotor.IsMovingLessThanHalfSpeed)
                                     {
                                         //do alternating horizontal swings while moving at half-speed or less
-                                        swingDirection = WeaponManager.MouseDirections.Left;
-
-                                        if (swingCount % 2 != 0)
+                                        if (weaponManager.ScreenWeapon.FlipHorizontal)
+                                        {
                                             swingDirection = WeaponManager.MouseDirections.Right;
+
+                                            if (swingCount % 2 != 0)
+                                                swingDirection = WeaponManager.MouseDirections.Left;
+                                        }
+                                        else
+                                        {
+                                            swingDirection = WeaponManager.MouseDirections.Left;
+
+                                            if (swingCount % 2 != 0)
+                                                swingDirection = WeaponManager.MouseDirections.Right;
+                                        }
                                     }
                                     else
                                     {
-                                        //do alternating diagonal swings if moving normally
-                                        swingDirection = WeaponManager.MouseDirections.DownLeft;
-
-                                        if (swingCount % 2 != 0)
+                                        //do alternating horizontal swings while moving at half-speed or less
+                                        if (weaponManager.ScreenWeapon.FlipHorizontal)
+                                        {
+                                            //do alternating diagonal swings if moving normally
                                             swingDirection = WeaponManager.MouseDirections.DownRight;
+
+                                            if (swingCount % 2 != 0)
+                                                swingDirection = WeaponManager.MouseDirections.DownLeft;
+                                        }
+                                        else
+                                        {
+                                            //do alternating diagonal swings if moving normally
+                                            swingDirection = WeaponManager.MouseDirections.DownLeft;
+
+                                            if (swingCount % 2 != 0)
+                                                swingDirection = WeaponManager.MouseDirections.DownRight;
+                                        }
                                     }
                                 }
                             }
                             else if (meleeMode == 2)
                             {
-                                /*//Movement-based
-                                if (Mathf.Abs(InputManager.Instance.Horizontal) > 0)
-                                {
-                                    //do alternating horizontal swings
-                                    swingDirection = WeaponManager.MouseDirections.Left;
-
-                                    if (swingCount % 2 != 0)
-                                        swingDirection = WeaponManager.MouseDirections.Right;
-                                }
-                                else if (InputManager.Instance.Vertical > 0)
-                                {
-                                    swingDirection = WeaponManager.MouseDirections.Up;
-                                }
-                                else if (InputManager.Instance.Vertical < 0)
-                                {
-                                    swingDirection = WeaponManager.MouseDirections.Down;
-                                }
-                                else
-                                {
-                                    //do alternating diagonal swings
-                                    swingDirection = WeaponManager.MouseDirections.DownLeft;
-
-                                    if (swingCount % 2 != 0)
-                                        swingDirection = WeaponManager.MouseDirections.DownRight;
-                                }*/
-
                                 //Morrowind
                                 if (Mathf.Abs(InputManager.Instance.Horizontal) > 0 && Mathf.Abs(InputManager.Instance.Vertical) == 0)
                                 {
@@ -571,6 +1223,130 @@ public class WeaponFeatures : MonoBehaviour
                 }
             }
         }
+
+    }
+
+    void DrawTrajectory()
+    {
+        if (!lineRenderer.enabled)
+            lineRenderer.enabled = true;
+
+        positions = new List<Vector3>();
+
+        //get start
+        Vector3 start = GetEyePos;
+        // Adjust slightly downward to match bow animation
+        Vector3 adjust = (GameManager.Instance.MainCamera.transform.rotation * -GameManager.Instance.PlayerObject.transform.up) * 0.11f;
+        // Offset forward to avoid collision with player
+        adjust += GameManager.Instance.MainCamera.transform.forward * 0.6f;
+        // Adjust to the right or left to match bow animation
+        if (!GameManager.Instance.WeaponManager.ScreenWeapon.FlipHorizontal)
+            adjust += GameManager.Instance.MainCamera.transform.right * 0.15f;
+        else
+            adjust -= GameManager.Instance.MainCamera.transform.right * 0.15f;
+        start += adjust;
+        positions.Add(start);
+
+        Vector3 dir = Quaternion.AngleAxis(-archeryMissileAngleTyped, GameManager.Instance.MainCameraObject.transform.right) * playerCamera.transform.forward;
+
+        Vector3 startStep = dir * archeryMissileSpeedTyped * Mathf.Clamp(drawTimer / archeryOverdrawTimeTyped, 0.5f, 2f);
+
+        //get all positions
+        bool stopped = false;
+        Vector3 currentPos = start;
+        Vector3 currentGravity = Vector3.zero;
+        Vector3 currentStep = startStep;
+        Ray ray = new Ray(currentPos, currentStep.normalized);
+        RaycastHit hit = new RaycastHit();
+        while (!stopped && positions.Count < 200)
+        {
+            startStep = dir * archeryMissileSpeedTyped * Mathf.Clamp(drawTimer / archeryOverdrawTimeTyped, 0.5f, 2f);
+
+            currentGravity += Vector3.down * (9.8f * (archeryMissileGravityTyped * 0.01f));
+            currentStep = (startStep * (Time.fixedDeltaTime * 1)) + (currentGravity * (Time.fixedDeltaTime * 1));
+
+            ray = new Ray(currentPos, currentStep.normalized);
+
+            if (Physics.Raycast(ray, out hit, currentStep.magnitude, layerMask))
+            {
+                stopped = true;
+                positions.Add(hit.point);
+            }
+            else
+            {
+                currentPos += currentStep;
+                positions.Add(currentPos);
+            }
+        }
+        lineRenderer.positionCount = positions.Count;
+        lineRenderer.SetPositions(positions.ToArray());
+    }
+
+    void UpdateAmmoCount()
+    {
+        ItemGroups itemGroup = ItemGroups.Weapons;
+        if (archeryCustomItemTemplate != 0)
+            itemGroup = ItemGroups.UselessItems2;
+
+        List<DaggerfallUnityItem> items = GameManager.Instance.PlayerEntity.Items.SearchItems(itemGroup, archeryItemTemplate);
+        int count = items.Count;
+
+        if (count < 1)
+        {
+            Debug.Log("No items of this template detected!");
+            return;
+        }
+
+        foreach (DaggerfallUnityItem item in items)
+        {
+            if (item.IsQuestItem)
+            {
+                count -= 1;
+                continue;
+            }
+
+            if (item.IsStackable())
+                count += item.stackCount - 1;
+        }
+
+        archeryAmmoCount = count;
+        archeryAmmoLabel = items[0].ItemName + " (" + archeryAmmoCount.ToString() + ")";
+
+        //get label length;
+    }
+
+    void OverrideMissileProperties(object[] data)
+    {
+        archeryCustomModelID = (int)data[0];
+        archeryCustomItemTemplate = (int)data[1];
+        archeryMissileSpeedMod = (float)data[2];
+        archeryMissileGravityMod = (float)data[3];
+        archeryBonusAccuracy = (int)data[4];
+        archeryBonusDamage = (int)data[5];
+        archeryAmmoCounterColorCustom = (Color)data[6];
+        archeryAutoReset = (bool)data[7];
+
+        if (OnMissileChange != null)
+            OnMissileChange(archeryCustomItemTemplate);
+
+        UpdateAmmoCount();
+    }
+
+    void ResetMissileProperties()
+    {
+        archeryCustomModelID = 0;
+        archeryCustomItemTemplate = 0;
+        archeryMissileSpeedMod = 1;
+        archeryMissileGravityMod = 1;
+        archeryBonusAccuracy = 0;
+        archeryBonusDamage = 0;
+        archeryAmmoCounterColorCustom = Color.black;
+        archeryAutoReset = true;
+
+        if (OnMissileChange != null)
+            OnMissileChange(archeryCustomItemTemplate);
+
+        UpdateAmmoCount();
     }
 
     bool CanAttack()
@@ -580,7 +1356,8 @@ public class WeaponFeatures : MonoBehaviour
             GameManager.Instance.ClimbingMotor.IsClimbing ||
             GameManager.Instance.PlayerEffectManager.HasReadySpell ||
             GameManager.Instance.PlayerSpellCasting.IsPlayingAnim ||
-            (GameManager.Instance.PlayerMouseLook.cursorActive && DaggerfallUI.Instance.DaggerfallHUD != null && DaggerfallUI.Instance.DaggerfallHUD.LargeHUD.ActiveMouseOverLargeHUD)
+            (GameManager.Instance.PlayerMouseLook.cursorActive && DaggerfallUI.Instance.DaggerfallHUD != null && DaggerfallUI.Instance.DaggerfallHUD.LargeHUD.ActiveMouseOverLargeHUD) ||
+            blockHoldInput
             )
             return false;
 
@@ -592,32 +1369,77 @@ public class WeaponFeatures : MonoBehaviour
         DaggerfallMissile missile = Instantiate(weaponManager.ArrowMissilePrefab);
         if (missile)
         {
-            // Remove arrow
+            missile.Caster = GameManager.Instance.PlayerEntityBehaviour;
+
+            // Remove ammo
+            ItemGroups itemGroup = ItemGroups.Weapons;
+            if (archeryCustomItemTemplate != 0)
+                itemGroup = ItemGroups.UselessItems2;
+
             ItemCollection playerItems = playerEntity.Items;
-            DaggerfallUnityItem arrow = playerItems.GetItem(ItemGroups.Weapons, (int)Weapons.Arrow, allowQuestItem: false, priorityToConjured: true);
+            DaggerfallUnityItem arrow = playerItems.GetItem(itemGroup, archeryItemTemplate, allowQuestItem: false, priorityToConjured: true);
             bool isArrowSummoned = arrow.IsSummoned;
             playerItems.RemoveOne(arrow);
+            UpdateAmmoCount();
 
-            missile.Caster = GameManager.Instance.PlayerEntityBehaviour;
-            missile.TargetType = TargetTypes.SingleTargetAtRange;
-            missile.ElementType = ElementTypes.None;
-            missile.IsArrow = true;
-            missile.IsArrowSummoned = isArrowSummoned;
-            missile.CustomAimPosition = GetEyePos;
+            if (archery > 0)
+            {
+                missile.enabled = false;
+
+                WeaponFeaturesMissile missileCustom = missile.gameObject.AddComponent<WeaponFeaturesMissile>();
+                missileCustom.modelID = (uint)archeryModelID;
+                missileCustom.dfMissile = missile;
+                if (archeryOverdraw && DaggerfallUnity.Settings.BowDrawback)
+                    missileCustom.MovementSpeed = archeryMissileSpeedTyped * Mathf.Clamp(drawTimer/archeryOverdrawTimeTyped,0.5f,2f);
+                else
+                    missileCustom.MovementSpeed = archeryMissileSpeedTyped;
+                missileCustom.ColliderRadius = archeryMissileRadius;
+                missileCustom.gravityMod = archeryMissileGravityTyped * 0.01f;
+                missileCustom.EnableLight = false;
+                missileCustom.ImpactSound = SoundClips.ArrowHit;
+                missileCustom.Caster = GameManager.Instance.PlayerEntityBehaviour;
+                missileCustom.TargetType = TargetTypes.SingleTargetAtRange;
+                missileCustom.ElementType = ElementTypes.None;
+                missileCustom.IsArrow = true;
+                missileCustom.IsArrowSummoned = isArrowSummoned;
+                missileCustom.CustomAimPosition = GetEyePos;
+                missileCustom.CustomAimDirection = (Quaternion.AngleAxis(-archeryMissileAngleTyped + (archeryMissileSpreadTyped * UnityEngine.Random.Range(-1f, 1f)), GameManager.Instance.MainCameraObject.transform.right) * playerCamera.transform.forward).normalized;
+            }
+            else
+            {
+                missile.TargetType = TargetTypes.SingleTargetAtRange;
+                missile.ElementType = ElementTypes.None;
+                missile.IsArrow = true;
+                missile.IsArrowSummoned = isArrowSummoned;
+                missile.CustomAimPosition = GetEyePos;
+                missile.GetComponent<Rigidbody>().collisionDetectionMode = CollisionDetectionMode.Continuous;
+            }
 
             ScreenWeapon.PlaySwingSound();
-            reloadTime = FormulaHelper.GetBowCooldownTime(playerEntity) * reloadSizeMod;
+            reloadTime = FormulaHelper.GetBowCooldownTime(playerEntity) * reloadTimeMod;
             reloadTimer = 0;
             reloaded = false;
 
             //Tally weapon skill when firing a missile
             playerEntity.TallySkill(ScreenWeapon.SpecificWeapon.GetWeaponSkillID(), 1);
             playerEntity.TallySkill(DFCareer.Skills.CriticalStrike, 1);
+
+            if (LastBowUsed != null)
+            {
+                DaggerfallUnityItem lastBowUsed = ScreenWeapon.SpecificWeapon;
+                LastBowUsed.SetValue(weaponManager, lastBowUsed);
+            }
+
+            if (OnMissileSpawn != null)
+                OnMissileSpawn(missile.gameObject, ScreenWeapon.SpecificWeapon, drawTime);
         }
     }
 
     private void ModCompatibilityChecking()
     {
+        if (modCompatibilityChecked)
+            return;
+
         //listen to Combat Event Handler for attacks
         Mod ceh = ModManager.Instance.GetModFromGUID("fb086c76-38e7-4d83-91dc-f29e6f1bb17e");
         if (ceh != null)
@@ -625,6 +1447,18 @@ public class WeaponFeatures : MonoBehaviour
             ModManager.Instance.SendModMessage(ceh.Title, "onAttackDamageCalculated", (Action<DaggerfallEntity, DaggerfallEntity, DaggerfallUnityItem, int, int>)OnAttackDamageCalculated);
             ModManager.Instance.SendModMessage(ceh.Title, "onSavingThrow", (Action<DFCareer.Elements, DFCareer.EffectFlags, DaggerfallEntity, int>)OnSavingThrow);
         }
+
+        SphincterVisionAttacks = ModManager.Instance.GetModFromGUID("28faf48c-9fe1-46a9-b155-fefc71547e26");
+
+        mod.LoadSettings();
+
+        modCompatibilityChecked = true;
+    }
+
+    public void RaiseOnMissileHitEvent(GameObject missileObject, GameObject hitObject, Vector3 hitPoint)
+    {
+        if (OnMissileHit != null)
+            OnMissileHit(missileObject, ScreenWeapon.SpecificWeapon, hitObject, hitPoint);
     }
 
     public void OnAttackDamageCalculated(DaggerfallEntity attacker, DaggerfallEntity target, DaggerfallUnityItem weapon, int bodyPart, int damage)
@@ -717,13 +1551,34 @@ public class WeaponFeatures : MonoBehaviour
             direction = Quaternion.Euler(0, Mathf.Sign(dot) * 67.5f, 0) * direction;
         }
 
-        enemyMotor.KnockbackDirection = direction.normalized * (10 * feedbackDodgeScale);
-        enemyMotor.KnockbackSpeed = 1.25f;
+        if (enemy.MobileEnemy.Behaviour != MobileBehaviour.Flying && enemy.MobileEnemy.Behaviour != MobileBehaviour.Aquatic && enemy.MobileEnemy.Behaviour != MobileBehaviour.Spectral)
+            direction = (Vector3.down + direction.normalized).normalized;
+
+        StartCoroutine(DodgeEnemyCoroutine(target,direction));
     }
 
     void PauseEnemy(DaggerfallEntity attacker, DaggerfallEntity target)
     {
         StartCoroutine(PauseEnemyCoroutine(target, 1 * feedbackPauseScale));
+    }
+
+    IEnumerator DodgeEnemyCoroutine(DaggerfallEntity target, Vector3 direction, float time = 0.1f)
+    {
+        EnemyMotor enemyMotor = target.EntityBehaviour.GetComponent<EnemyMotor>();
+        CharacterController controller = enemyMotor.GetComponent<CharacterController>();
+
+        float currentTime = 0;
+        while (currentTime < time)
+        {
+            controller.SimpleMove(direction.normalized * 3 * feedbackDodgeScale);
+
+            currentTime += Time.deltaTime;
+
+            yield return new WaitForEndOfFrame();
+        }
+
+        enemyMotor.KnockbackDirection = Vector3.zero;
+        enemyMotor.KnockbackSpeed = 0;
     }
 
     IEnumerator PauseEnemyCoroutine(DaggerfallEntity target, float time = 1)
@@ -974,7 +1829,7 @@ public class WeaponFeatures : MonoBehaviour
         List<Transform> transforms = new List<Transform>();
 
         //overlap box using bounds + player position + camera rotation
-        //DrawBox(pos,rot,scale,Color.red, 3);
+        DrawBox(pos,rot,scale,Color.red, 3);
         Collider[] colliders = Physics.OverlapBox(pos, scale, rot, layerMask);
 
         //get entities inside box, exclude original target, if any
@@ -1304,16 +2159,20 @@ public class WeaponFeatures : MonoBehaviour
     private KeyCode SetKeyFromText(string text)
     {
         Debug.Log("Setting Key");
-        if (System.Enum.TryParse(text, true, out KeyCode result))
+
+        foreach (KeyCode keyCode in InputManager.Instance.KeyCodeList)
         {
-            Debug.Log("Key set to " + result.ToString());
-            return result;
+            if (keyCode.ToString() == text)
+                return keyCode;
         }
-        else
-        {
-            Debug.Log("Detected an invalid key code. Setting to default.");
-            return KeyCode.None;
-        }
+
+        Debug.Log("Detected an invalid key code. Setting to default.");
+        return KeyCode.None;
+    }
+
+    public static void OnStartMenu(object sender, EventArgs e)
+    {
+        Instance.ModCompatibilityChecking();
     }
 
     public static void OnNewGame()
@@ -1352,6 +2211,731 @@ public class WeaponFeatures : MonoBehaviour
         yield return new WaitForSeconds(1);
 
         conflict = null;
+    }
+
+    public static int AdjustWeaponHitChanceMod(DaggerfallEntity attacker, DaggerfallEntity target, int hitChanceMod, int weaponAnimTime, DaggerfallUnityItem weapon)
+    {
+
+        //if Power Attacks module is enabled, scale to-hit bonus to Last Power
+        if (attacker == GameManager.Instance.PlayerEntity)
+        {
+            if (Instance.powerMessage)
+                Debug.Log("TOME OF BATTLE - ACCURACY SCALING - Base accuracy is " + hitChanceMod.ToString() + "%!");
+
+            if (Instance.archery > 0)
+            {
+                //if weapon is bow, add TOB accuracy modifier if any
+                if (DaggerfallUnity.Instance.ItemHelper.ConvertItemToAPIWeaponType(weapon) == WeaponTypes.Bow)
+                    hitChanceMod += Instance.archeryBonusAccuracy;
+            }
+
+
+            if (Instance.powerAttacks)
+            {
+                if (Instance.powerAccuracy == 2 || (Instance.powerAccuracy == 1 && DaggerfallUnity.Instance.ItemHelper.ConvertItemToAPIWeaponType(weapon) == WeaponTypes.Bow))
+                    hitChanceMod = Mathf.CeilToInt((float)hitChanceMod * Instance.LastPower);
+            }
+
+            if (Instance.powerMessage)
+                Debug.Log("TOME OF BATTLE - ACCURACY SCALING - Adjusted accuracy is " + hitChanceMod.ToString() + "%!");
+        }
+
+        return hitChanceMod;
+    }
+
+    public static int AdjustWeaponAttackDamage(DaggerfallEntity attacker, DaggerfallEntity target, int damage, int weaponAnimTime, DaggerfallUnityItem weapon)
+    {
+
+        if (attacker == GameManager.Instance.PlayerEntity)
+        {
+            if (Instance.powerMessage)
+                Debug.Log("TOME OF BATTLE - DAMAGE SCALING - Base damage is " + damage.ToString() + "!");
+
+            if (Instance.archery > 0)
+            {
+                //if weapon is bow, add TOB damage modifier if any
+                if (DaggerfallUnity.Instance.ItemHelper.ConvertItemToAPIWeaponType(weapon) == WeaponTypes.Bow)
+                    damage += Instance.archeryBonusDamage;
+            } 
+
+            //if Power Attacks module is enabled
+            if (Instance.powerAttacks)
+            {
+                //If Damage is set to Random Range With Scaling, scale total damage to Last Power
+                if (Instance.powerDamage == 1)
+                    damage = Mathf.CeilToInt((float)damage * Instance.LastPower);
+            }
+
+            if (damage < 0)
+                damage = 0;
+
+            if (Instance.powerMessage)
+                Debug.Log("TOME OF BATTLE - DAMAGE SCALING - Adjusted damage is " + damage.ToString() + "!");
+        }
+
+        return damage;
+    }
+
+    int CalculateWeaponAttackDamage(DaggerfallEntity attacker, DaggerfallEntity target, int damageModifier, int weaponAnimTime, DaggerfallUnityItem weapon)
+    {
+        int damage = UnityEngine.Random.Range(weapon.GetBaseDamageMin(), weapon.GetBaseDamageMax() + 1) + damageModifier;
+
+        //Power Attack
+        if (Instance.powerAttacks && Instance.powerDamage == 2 && attacker == GameManager.Instance.PlayerEntity)
+        {
+            //If attacker is player
+            //Lerp between Min and Max damage using Last Power
+            damage = Mathf.FloorToInt(Mathf.Lerp(weapon.GetBaseDamageMin(), weapon.GetBaseDamageMax(), Instance.LastPower));
+            if (Instance.powerMessage)
+                DaggerfallUI.Instance.DaggerfallHUD.SetMidScreenText("Your base damage was " + damage.ToString() + " at " + (Instance.LastPower * 100).ToString("0") + "% Power!");
+            damage += damageModifier;
+        }
+
+
+        if (target != GameManager.Instance.PlayerEntity)
+        {
+            if ((target as EnemyEntity).CareerIndex == (int)MonsterCareers.SkeletalWarrior)
+            {
+                // Apply edged-weapon damage modifier for Skeletal Warrior
+                if ((weapon.flags & 0x10) == 0)
+                    damage /= 2;
+
+                // Apply silver weapon damage modifier for Skeletal Warrior
+                // Arena applies a silver weapon damage bonus for undead enemies, which is probably where this comes from.
+                if (weapon.NativeMaterialValue == (int)WeaponMaterialTypes.Silver)
+                    damage *= 2;
+            }
+        }
+        // TODO: Apply strength bonus from Mace of Molag Bal
+
+        // Apply strength modifier
+        damage += FormulaHelper.DamageModifier(attacker.Stats.LiveStrength);
+
+        // Apply material modifier.
+        // The in-game display in Daggerfall of weapon damages with material modifiers is incorrect. The material modifier is half of what the display suggests.
+        damage += weapon.GetWeaponMaterialModifier();
+        if (damage < 1)
+            damage = 0;
+
+        damage += FormulaHelper.GetBonusOrPenaltyByEnemyType(attacker, target);
+
+        // Mod hook for adjusting final weapon damage. (no-op in DFU)
+        damage = AdjustWeaponAttackDamage(attacker, target, damage, weaponAnimTime, weapon);
+
+        return damage;
+    }
+
+    int GetPickedCombatSkills()
+    {
+        int count = 0;
+
+        List<DFCareer.Skills> skills = GameManager.Instance.PlayerEntity.GetPrimarySkills();
+        foreach (DFCareer.Skills skill in skills)
+        {
+            if (skill == DFCareer.Skills.Archery ||
+                skill == DFCareer.Skills.Axe ||
+                skill == DFCareer.Skills.BluntWeapon ||
+                skill == DFCareer.Skills.LongBlade ||
+                skill == DFCareer.Skills.ShortBlade
+                )
+                count++;
+        }
+
+        skills = GameManager.Instance.PlayerEntity.GetMajorSkills();
+        foreach (DFCareer.Skills skill in skills)
+        {
+            if (skill == DFCareer.Skills.Archery ||
+                skill == DFCareer.Skills.Axe ||
+                skill == DFCareer.Skills.BluntWeapon ||
+                skill == DFCareer.Skills.LongBlade ||
+                skill == DFCareer.Skills.ShortBlade
+                )
+                count++;
+        }
+
+        skills = GameManager.Instance.PlayerEntity.GetMinorSkills();
+        foreach (DFCareer.Skills skill in skills)
+        {
+            if (skill == DFCareer.Skills.Archery ||
+                skill == DFCareer.Skills.Axe ||
+                skill == DFCareer.Skills.BluntWeapon ||
+                skill == DFCareer.Skills.LongBlade ||
+                skill == DFCareer.Skills.ShortBlade
+                )
+                count++;
+        }
+
+        return count;
+    }
+
+    int GetSphincterVisionMinDamageMod(DaggerfallUnityItem weapon)
+    {
+        int minDamageMod = -weapon.GetBaseDamageMax() + weapon.GetBaseDamageMin();
+
+        if (weapon != null)
+        {
+            if (GameManager.Instance.RightHandWeapon.WeaponState == WeaponStates.StrikeDownLeft)
+                minDamageMod += 2;
+
+            if (GameManager.Instance.RightHandWeapon.WeaponState == WeaponStates.StrikeDown)
+                minDamageMod += 4;
+        }
+
+        return minDamageMod;
+    }
+
+    int GetSphincterVisionMaxDamageMod(DaggerfallUnityItem weapon)
+    {
+        //Prowess is (combat skills (6) / 150) for max damage bonus.
+        int maxDmgMod = (GetPickedCombatSkills() * 6) / 150;
+
+        if (weapon != null)
+        {
+            DFCareer.Skills weaponSkill = weapon.GetWeaponSkillID();
+
+            //Bows, long blades, and short blades gain accuracy and damage from Agility - up to +10 to hit, and +5 to max damage.
+            if (weaponSkill == DFCareer.Skills.Archery || weaponSkill == DFCareer.Skills.LongBlade || weaponSkill == DFCareer.Skills.ShortBlade)
+                maxDmgMod += playerEntity.Stats.GetLiveStatValue(DFCareer.Stats.Agility) / 20;
+
+            //Axes gain a large max damage bonus from strength, up to +10 max damage.
+            if (weaponSkill == DFCareer.Skills.Axe)
+                maxDmgMod += playerEntity.Stats.GetLiveStatValue(DFCareer.Stats.Strength) / 10;
+
+            //Blunt weapons gain up to a +5 max damage bonus from strength.
+            if (weaponSkill == DFCareer.Skills.BluntWeapon)
+                maxDmgMod += playerEntity.Stats.GetLiveStatValue(DFCareer.Stats.Strength) / 20;
+
+            if (GameManager.Instance.RightHandWeapon.WeaponState == WeaponStates.StrikeUp)
+                maxDmgMod -= 4;
+
+            if (GameManager.Instance.RightHandWeapon.WeaponState == WeaponStates.StrikeDownRight)
+                maxDmgMod -= 2;
+
+            if (GameManager.Instance.RightHandWeapon.WeaponState == WeaponStates.StrikeDownLeft)
+                maxDmgMod += 2;
+
+            if (GameManager.Instance.RightHandWeapon.WeaponState == WeaponStates.StrikeDown)
+                maxDmgMod += 4;
+        }
+
+        return maxDmgMod;
+    }
+
+    public static int CalculateWeaponAttackDamage_SphincterVision(DaggerfallEntity attacker, DaggerfallEntity target, int damageModifier, int weaponAnimTime, DaggerfallUnityItem weapon)
+    {
+        //derived variables that don't exist in the original formula
+        //I don't know what the values are supposed to be at this point
+        //these are just educated guesses taken from the mod description
+        int maxDmgMod = Instance.GetSphincterVisionMaxDamageMod(weapon);
+        int minDmgMod = Instance.GetSphincterVisionMinDamageMod(weapon);
+
+        int damage = 0;
+        int minDmg = 0;
+        int maxDmg = 0;
+
+        maxDmgMod += FormulaHelper.DamageModifier(attacker.Stats.LiveStrength);
+        if (ItemEquipTable.GetItemHands(weapon) != ItemHands.Both)
+        {
+            maxDmgMod -= FormulaHelper.DamageModifier(attacker.Stats.LiveStrength) / 2;
+        }
+
+        minDmg = (weapon.GetBaseDamageMax() + minDmgMod); //mainly for maxing out a critical hit
+        if (minDmg < 0) //min dmg is zero
+        {
+            minDmg = 0;
+        }
+
+        maxDmg = (weapon.GetBaseDamageMax() + maxDmgMod);
+
+        if (minDmg > maxDmg)
+        {
+            minDmg = maxDmg;
+        }
+
+        damage = UnityEngine.Random.Range(minDmg, maxDmg + 1);
+
+        if (attacker == GameManager.Instance.PlayerEntity)
+        {
+            if (Instance.powerAttacks && Instance.powerDamage == 2)
+            {
+                //If attacker is player
+                //Lerp between Min and Max damage using Last Power
+                damage = Mathf.FloorToInt(Mathf.Lerp(minDmg, maxDmg, Instance.LastPower));
+                if (Instance.powerMessage)
+                    DaggerfallUI.Instance.DaggerfallHUD.SetMidScreenText("Your base damage was " + damage.ToString() + " at " + (Instance.LastPower * 100).ToString("0") + "% Power!");
+            }
+        }
+
+        damage += damageModifier;
+
+        if ((target != GameManager.Instance.PlayerEntity) && ((target as EnemyEntity).EntityType != EntityTypes.EnemyClass)) //need this or npcs with same enum are affected
+        {
+            if ((target as EnemyEntity).CareerIndex == (int)MonsterCareers.SkeletalWarrior)
+            {
+                // Apply edged-weapon damage modifier for Skeletal Warrior
+                if (weapon.GetWeaponSkillIDAsShort() != 32) //blunt
+                {
+                    damage /= 2;
+                    if (attacker == GameManager.Instance.PlayerEntity)
+                    {
+                        DaggerfallUI.Instance.PopupMessage("The weapon you are using is less effective against the Skeletal Warrior.");
+                    }
+                }
+            }
+            if ((target as EnemyEntity).GetEnemyGroup() == DFCareer.EnemyGroups.Undead)
+            {
+                // Apply silver weapon damage modifier for Undead
+                // Arena applies a silver weapon damage bonus for undead enemies, which is probably where this comes from.
+                if (weapon.NativeMaterialValue == (int)WeaponMaterialTypes.Silver)
+                {
+                    damage *= 2;
+                }
+            }
+            if ((target as EnemyEntity).CareerIndex == (int)MonsterCareers.Werewolf || (target as EnemyEntity).CareerIndex == (int)MonsterCareers.Wereboar)
+            {
+                // Apply silver weapon damage modifier for furries
+                if (weapon.NativeMaterialValue == (int)WeaponMaterialTypes.Silver)
+                {
+                    damage *= 2;
+                }
+            }
+            // Spriggans are mentioned to be impervious to most weapons in in-game lore.
+            if ((target as EnemyEntity).CareerIndex == (int)MonsterCareers.Spriggan)
+            {
+                if (weapon.GetWeaponSkillIDAsShort() != 31) //axe
+                {
+                    damage /= 5;
+                    if (attacker == GameManager.Instance.PlayerEntity)
+                    {
+                        DaggerfallUI.Instance.PopupMessage("The weapon you are using is less effective against the Spriggan.");
+                    }
+                }
+            }
+        }
+
+        return damage;
+    }
+
+    public static int CalculateHandToHandAttackDamage(DaggerfallEntity attacker, DaggerfallEntity target, int damageModifier, bool player)
+    {
+        int minBaseDamage = FormulaHelper.CalculateHandToHandMinDamage(attacker.Skills.GetLiveSkillValue(DFCareer.Skills.HandToHand));
+        int maxBaseDamage = FormulaHelper.CalculateHandToHandMaxDamage(attacker.Skills.GetLiveSkillValue(DFCareer.Skills.HandToHand));
+        int damage = UnityEngine.Random.Range(minBaseDamage, maxBaseDamage + 1);
+
+        if (Instance.powerAttacks && attacker == GameManager.Instance.PlayerEntity)
+        {
+            //If attacker is player
+            //Lerp between Min and Max damage using Last Power
+            damage = Mathf.FloorToInt(Mathf.Lerp(minBaseDamage, maxBaseDamage, Instance.LastPower));
+            DaggerfallUI.Instance.DaggerfallHUD.SetMidScreenText("You dealt " + damage.ToString() + " damage at " + (Instance.LastPower * 100).ToString("0") + "% Power!");
+        }
+
+        // Apply damage modifiers.
+        damage += damageModifier;
+
+        // Apply strength modifier for players. It is not applied in classic despite what the in-game description for the Strength attribute says.
+        if (player)
+            damage += FormulaHelper.DamageModifier(attacker.Stats.LiveStrength);
+
+        damage += FormulaHelper.GetBonusOrPenaltyByEnemyType(attacker, target);
+
+        return damage;
+    }
+    public static int CalculateHandToHandAttackDamage_SphincterVision(DaggerfallEntity attacker, DaggerfallEntity target, int damageModifier, bool player)
+    {
+        // if hand to hand is forbidden, you aren't hitting jack
+        if (((int)attacker.Career.ForbiddenProficiencies & (int)DFCareer.ProficiencyFlags.HandToHand) != 0)
+            return 0;
+
+        int minBaseDamage = FormulaHelper.CalculateHandToHandMinDamage(attacker.Skills.GetLiveSkillValue(DFCareer.Skills.HandToHand));
+        int maxBaseDamage = FormulaHelper.CalculateHandToHandMaxDamage(attacker.Skills.GetLiveSkillValue(DFCareer.Skills.HandToHand));
+        // Apply strength modifier for players. It is not applied in classic despite what the in-game description for the Strength attribute says.
+        if (player || ((attacker as EnemyEntity).EntityType == EntityTypes.EnemyClass))
+        {
+            maxBaseDamage += (FormulaHelper.DamageModifier(attacker.Stats.LiveStrength) / 2);
+        }
+
+        if (minBaseDamage < 0)
+        {
+            minBaseDamage = 0;
+        }
+        else if (minBaseDamage > maxBaseDamage)
+        {
+            minBaseDamage = maxBaseDamage;
+        }
+
+        int damage = UnityEngine.Random.Range(minBaseDamage, maxBaseDamage + 1);
+
+        if (Instance.powerAttacks && attacker == GameManager.Instance.PlayerEntity)
+        {
+            //If attacker is player
+            //Lerp between Min and Max damage using Last Power
+            damage = Mathf.FloorToInt(Mathf.Lerp(minBaseDamage, maxBaseDamage, Instance.LastPower));
+            DaggerfallUI.Instance.DaggerfallHUD.SetMidScreenText("You dealt " + damage.ToString() + " damage at " + (Instance.LastPower * 100).ToString("0") + "% Power!");
+        }
+
+        // Apply damage modifiers.
+        damage += damageModifier;
+
+        damage += FormulaHelper.GetBonusOrPenaltyByEnemyType(attacker, target);
+
+        return damage;
+    }
+    public static FormulaHelper.ToHitAndDamageMods CalculateSwingModifiers(FPSWeapon onscreenWeapon)
+    {
+        FormulaHelper.ToHitAndDamageMods mods = new FormulaHelper.ToHitAndDamageMods();
+        if (onscreenWeapon != null)
+        {
+            //Universal ruleset
+            //Horizontal swings are easiest to hit with but may not hit any vulnerable parts
+            if (onscreenWeapon.WeaponState == WeaponStates.StrikeRight || onscreenWeapon.WeaponState == WeaponStates.StrikeLeft)
+            {
+                mods.toHitMod = 10;
+                mods.damageMod = -2;
+            }
+            //Diagonal swings are neutral
+            if (onscreenWeapon.WeaponState == WeaponStates.StrikeDownRight || onscreenWeapon.WeaponState == WeaponStates.StrikeDownLeft)
+            {
+                mods.toHitMod = 0;
+                mods.damageMod = 0;
+            }
+            //Chops are clumsy but are devastating when landed
+            if (onscreenWeapon.WeaponState == WeaponStates.StrikeDown)
+            {
+                mods.toHitMod = -5;
+                mods.damageMod = 4;
+            }
+            //Thrusts have extra reach but are tricky to land
+            if (onscreenWeapon.WeaponState == WeaponStates.StrikeUp)
+            {
+                mods.toHitMod = -10;
+                mods.damageMod = 2;
+            }
+
+            //Weapon-specific
+            if (onscreenWeapon.WeaponType == WeaponTypes.Melee)
+            {
+                //Left, Down and Up are kicks
+                switch (onscreenWeapon.WeaponState)
+                {
+                    case WeaponStates.StrikeRight:
+                    case WeaponStates.StrikeLeft:
+                        mods.damageMod = 0; break;
+                    case WeaponStates.StrikeDownRight:
+                    case WeaponStates.StrikeDownLeft:
+                        mods.damageMod = 0; break;
+                    case WeaponStates.StrikeDown:
+                        mods.damageMod = 0; break;
+                    case WeaponStates.StrikeUp:
+                        mods.damageMod = 0; break;
+                }
+            }
+            else if (onscreenWeapon.WeaponType == WeaponTypes.Werecreature)
+            {
+                switch (onscreenWeapon.WeaponState)
+                {
+                    case WeaponStates.StrikeRight:
+                    case WeaponStates.StrikeLeft:
+                        mods.damageMod = 0; break;
+                    case WeaponStates.StrikeDownRight:
+                    case WeaponStates.StrikeDownLeft:
+                        mods.damageMod = 0; break;
+                    case WeaponStates.StrikeDown:
+                        mods.damageMod = 0; break;
+                    case WeaponStates.StrikeUp:
+                        mods.damageMod = 0; break;
+                }
+            }
+            else if (onscreenWeapon.SpecificWeapon.TemplateIndex == (int)Weapons.Broadsword)
+            {
+                switch (onscreenWeapon.WeaponState)
+                {
+                    case WeaponStates.StrikeRight:
+                    case WeaponStates.StrikeLeft:
+                        mods.damageMod = 1; break;
+                    case WeaponStates.StrikeDownRight:
+                    case WeaponStates.StrikeDownLeft:
+                        mods.damageMod = 1; break;
+                    case WeaponStates.StrikeDown:
+                        mods.damageMod = 1; break;
+                    case WeaponStates.StrikeUp:
+                        mods.damageMod = -3; break;
+                }
+            }
+            else if (onscreenWeapon.SpecificWeapon.TemplateIndex == (int)Weapons.Claymore)
+            {
+                switch (onscreenWeapon.WeaponState)
+                {
+                    case WeaponStates.StrikeRight:
+                    case WeaponStates.StrikeLeft:
+                        mods.damageMod = 0; break;
+                    case WeaponStates.StrikeDownRight:
+                    case WeaponStates.StrikeDownLeft:
+                        mods.damageMod = 0; break;
+                    case WeaponStates.StrikeDown:
+                        mods.damageMod = 0; break;
+                    case WeaponStates.StrikeUp:
+                        mods.damageMod = 0; break;
+                }
+            }
+            else if (onscreenWeapon.SpecificWeapon.TemplateIndex == (int)Weapons.Dai_Katana)
+            {
+                switch (onscreenWeapon.WeaponState)
+                {
+                    case WeaponStates.StrikeRight:
+                    case WeaponStates.StrikeLeft:
+                        mods.damageMod = 1; break;
+                    case WeaponStates.StrikeDownRight:
+                    case WeaponStates.StrikeDownLeft:
+                        mods.damageMod = 1; break;
+                    case WeaponStates.StrikeDown:
+                        mods.damageMod = 1; break;
+                    case WeaponStates.StrikeUp:
+                        mods.damageMod = -3; break;
+                }
+            }
+            else if (onscreenWeapon.SpecificWeapon.TemplateIndex == (int)Weapons.Katana)
+            {
+                switch (onscreenWeapon.WeaponState)
+                {
+                    case WeaponStates.StrikeRight:
+                    case WeaponStates.StrikeLeft:
+                        mods.damageMod = 1; break;
+                    case WeaponStates.StrikeDownRight:
+                    case WeaponStates.StrikeDownLeft:
+                        mods.damageMod = 1; break;
+                    case WeaponStates.StrikeDown:
+                        mods.damageMod = 1; break;
+                    case WeaponStates.StrikeUp:
+                        mods.damageMod = -3; break;
+                }
+            }
+            else if (onscreenWeapon.SpecificWeapon.TemplateIndex == (int)Weapons.Longsword)
+            {
+                switch (onscreenWeapon.WeaponState)
+                {
+                    case WeaponStates.StrikeRight:
+                    case WeaponStates.StrikeLeft:
+                        mods.damageMod = 0; break;
+                    case WeaponStates.StrikeDownRight:
+                    case WeaponStates.StrikeDownLeft:
+                        mods.damageMod = 0; break;
+                    case WeaponStates.StrikeDown:
+                        mods.damageMod = 0; break;
+                    case WeaponStates.StrikeUp:
+                        mods.damageMod = 0; break;
+                }
+            }
+            else if (onscreenWeapon.SpecificWeapon.TemplateIndex == (int)Weapons.Saber)
+            {
+                switch (onscreenWeapon.WeaponState)
+                {
+                    case WeaponStates.StrikeRight:
+                    case WeaponStates.StrikeLeft:
+                        mods.damageMod = 1; break;
+                    case WeaponStates.StrikeDownRight:
+                    case WeaponStates.StrikeDownLeft:
+                        mods.damageMod = 1; break;
+                    case WeaponStates.StrikeDown:
+                        mods.damageMod = 1; break;
+                    case WeaponStates.StrikeUp:
+                        mods.damageMod = -3; break;
+                }
+            }
+            else if (onscreenWeapon.SpecificWeapon.TemplateIndex == (int)Weapons.Dagger)
+            {
+                switch (onscreenWeapon.WeaponState)
+                {
+                    case WeaponStates.StrikeRight:
+                    case WeaponStates.StrikeLeft:
+                        mods.damageMod = -1; break;
+                    case WeaponStates.StrikeDownRight:
+                    case WeaponStates.StrikeDownLeft:
+                        mods.damageMod = -1; break;
+                    case WeaponStates.StrikeDown:
+                        mods.damageMod = -1; break;
+                    case WeaponStates.StrikeUp:
+                        mods.damageMod = 3; break;
+                }
+            }
+            else if (onscreenWeapon.SpecificWeapon.TemplateIndex == (int)Weapons.Shortsword)
+            {
+                switch (onscreenWeapon.WeaponState)
+                {
+                    case WeaponStates.StrikeRight:
+                    case WeaponStates.StrikeLeft:
+                        mods.damageMod = 0; break;
+                    case WeaponStates.StrikeDownRight:
+                    case WeaponStates.StrikeDownLeft:
+                        mods.damageMod = 0; break;
+                    case WeaponStates.StrikeDown:
+                        mods.damageMod = 0; break;
+                    case WeaponStates.StrikeUp:
+                        mods.damageMod = 0; break;
+                }
+            }
+            else if (onscreenWeapon.SpecificWeapon.TemplateIndex == (int)Weapons.Tanto)
+            {
+                switch (onscreenWeapon.WeaponState)
+                {
+                    case WeaponStates.StrikeRight:
+                    case WeaponStates.StrikeLeft:
+                        mods.damageMod = 1; break;
+                    case WeaponStates.StrikeDownRight:
+                    case WeaponStates.StrikeDownLeft:
+                        mods.damageMod = 1; break;
+                    case WeaponStates.StrikeDown:
+                        mods.damageMod = 1; break;
+                    case WeaponStates.StrikeUp:
+                        mods.damageMod = -3; break;
+                }
+            }
+            else if (onscreenWeapon.SpecificWeapon.TemplateIndex == (int)Weapons.Wakazashi)
+            {
+                switch (onscreenWeapon.WeaponState)
+                {
+                    case WeaponStates.StrikeRight:
+                    case WeaponStates.StrikeLeft:
+                        mods.damageMod = 1; break;
+                    case WeaponStates.StrikeDownRight:
+                    case WeaponStates.StrikeDownLeft:
+                        mods.damageMod = 1; break;
+                    case WeaponStates.StrikeDown:
+                        mods.damageMod = 1; break;
+                    case WeaponStates.StrikeUp:
+                        mods.damageMod = -3; break;
+                }
+            }
+            else if (onscreenWeapon.SpecificWeapon.TemplateIndex == (int)Weapons.Battle_Axe)
+            {
+                switch (onscreenWeapon.WeaponState)
+                {
+                    case WeaponStates.StrikeRight:
+                    case WeaponStates.StrikeLeft:
+                        mods.damageMod = 2; break;
+                    case WeaponStates.StrikeDownRight:
+                    case WeaponStates.StrikeDownLeft:
+                        mods.damageMod = 2; break;
+                    case WeaponStates.StrikeDown:
+                        mods.damageMod = 2; break;
+                    case WeaponStates.StrikeUp:
+                        mods.damageMod = -6; break;
+                }
+            }
+            else if (onscreenWeapon.SpecificWeapon.TemplateIndex == (int)Weapons.War_Axe)
+            {
+                switch (onscreenWeapon.WeaponState)
+                {
+                    case WeaponStates.StrikeRight:
+                    case WeaponStates.StrikeLeft:
+                        mods.damageMod = 1; break;
+                    case WeaponStates.StrikeDownRight:
+                    case WeaponStates.StrikeDownLeft:
+                        mods.damageMod = 1; break;
+                    case WeaponStates.StrikeDown:
+                        mods.damageMod = 1; break;
+                    case WeaponStates.StrikeUp:
+                        mods.damageMod = -3; break;
+                }
+            }
+            else if (onscreenWeapon.SpecificWeapon.TemplateIndex == (int)Weapons.Flail)
+            {
+                switch (onscreenWeapon.WeaponState)
+                {
+                    case WeaponStates.StrikeRight:
+                    case WeaponStates.StrikeLeft:
+                        mods.damageMod = 1; break;
+                    case WeaponStates.StrikeDownRight:
+                    case WeaponStates.StrikeDownLeft:
+                        mods.damageMod = 1; break;
+                    case WeaponStates.StrikeDown:
+                        mods.damageMod = 1; break;
+                    case WeaponStates.StrikeUp:
+                        mods.damageMod = -3; break;
+                }
+            }
+            else if (onscreenWeapon.SpecificWeapon.TemplateIndex == (int)Weapons.Mace)
+            {
+                switch (onscreenWeapon.WeaponState)
+                {
+                    case WeaponStates.StrikeRight:
+                    case WeaponStates.StrikeLeft:
+                        mods.damageMod = 0; break;
+                    case WeaponStates.StrikeDownRight:
+                    case WeaponStates.StrikeDownLeft:
+                        mods.damageMod = 0; break;
+                    case WeaponStates.StrikeDown:
+                        mods.damageMod = 0; break;
+                    case WeaponStates.StrikeUp:
+                        mods.damageMod = 0; break;
+                }
+            }
+            else if (onscreenWeapon.SpecificWeapon.TemplateIndex == (int)Weapons.Staff)
+            {
+                switch (onscreenWeapon.WeaponState)
+                {
+                    case WeaponStates.StrikeRight:
+                    case WeaponStates.StrikeLeft:
+                        mods.damageMod = 0; break;
+                    case WeaponStates.StrikeDownRight:
+                    case WeaponStates.StrikeDownLeft:
+                        mods.damageMod = 0; break;
+                    case WeaponStates.StrikeDown:
+                        mods.damageMod = 0; break;
+                    case WeaponStates.StrikeUp:
+                        mods.damageMod = 0; break;
+                }
+            }
+            else if (onscreenWeapon.SpecificWeapon.TemplateIndex == (int)Weapons.Warhammer)
+            {
+                switch (onscreenWeapon.WeaponState)
+                {
+                    case WeaponStates.StrikeRight:
+                    case WeaponStates.StrikeLeft:
+                        mods.damageMod = 0; break;
+                    case WeaponStates.StrikeDownRight:
+                    case WeaponStates.StrikeDownLeft:
+                        mods.damageMod = 0; break;
+                    case WeaponStates.StrikeDown:
+                        mods.damageMod = 0; break;
+                    case WeaponStates.StrikeUp:
+                        mods.damageMod = 0; break;
+                }
+            }
+            else if (onscreenWeapon.SpecificWeapon.TemplateIndex == 513)    //Archer's Axe
+            {
+                switch (onscreenWeapon.WeaponState)
+                {
+                    case WeaponStates.StrikeRight:
+                    case WeaponStates.StrikeLeft:
+                        mods.damageMod = 2; break;
+                    case WeaponStates.StrikeDownRight:
+                    case WeaponStates.StrikeDownLeft:
+                        mods.damageMod = 2; break;
+                    case WeaponStates.StrikeDown:
+                        mods.damageMod = 2; break;
+                    case WeaponStates.StrikeUp:
+                        mods.damageMod = -6; break;
+                }
+            }
+            else if (onscreenWeapon.SpecificWeapon.TemplateIndex == 514)    //Light Flail
+            {
+                switch (onscreenWeapon.WeaponState)
+                {
+                    case WeaponStates.StrikeRight:
+                    case WeaponStates.StrikeLeft:
+                        mods.damageMod = 1; break;
+                    case WeaponStates.StrikeDownRight:
+                    case WeaponStates.StrikeDownLeft:
+                        mods.damageMod = 1; break;
+                    case WeaponStates.StrikeDown:
+                        mods.damageMod = 1; break;
+                    case WeaponStates.StrikeUp:
+                        mods.damageMod = -3; break;
+                }
+            }
+        }
+        return mods;
     }
 
 }

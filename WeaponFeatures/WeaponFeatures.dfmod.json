@@ -1,6 +1,6 @@
 {
     "ModTitle": "Tome of Battle",
-    "ModVersion": "1.3",
+    "ModVersion": "1.5",
     "ModAuthor": "RedRoryOTheGlen",
     "ContactInfo": "rmufrancisco@gmail.com",
     "DFUnity_Version": "1.1.1",
@@ -8,6 +8,11 @@
     "GUID": "a166c215-0a5a-4582-8bf3-8be8df80d5e5",
     "Files": [
         "Assets/Game/Mods/WeaponFeatures/Scripts/WeaponFeatures.cs",
-        "Assets/Game/Mods/WeaponFeatures/modsettings.json"
+        "Assets/Game/Mods/WeaponFeatures/modsettings.json",
+        "Assets/Game/Mods/WeaponFeatures/Scripts/WeaponFeaturesMissile.cs",
+        "Assets/Game/Mods/WeaponFeatures/WeaponFeatures.dfmod.json",
+        "Assets/Game/Mods/WeaponFeatures/Textures/9638_0-0.PNG",
+        "Assets/Game/Mods/WeaponFeatures/Textures/9638_1-0.PNG",
+        "Assets/Game/Mods/WeaponFeatures/Textures/9638_1-1.PNG"
     ]
 }

@@ -27,18 +27,6 @@
                     "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.MultipleChoiceKey"
                 },
                 {
-                    "Options": [
-                        "Vanilla",
-                        "Draw and Release",
-                        "Type"
-                    ],
-                    "Value": 0,
-                    "Name": "BowMode",
-                    "Description": null,
-                    "$version": "v1",
-                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.MultipleChoiceKey"
-                },
-                {
                     "Min": 0.0,
                     "Max": 1.0,
                     "Value": 0.5,
@@ -116,6 +104,231 @@
                     "Value": 1.0,
                     "Name": "TargetWeightMultiplier",
                     "Description": "Modifies the amount of Weight a target subtracts from Cleave",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderFloatKey"
+                }
+            ],
+            "$version": "v1"
+        },
+        {
+            "Name": "PowerAttacks",
+            "Description": "REQUIRES RESTART ON ENABLE/DISABLE",
+            "IsAdvanced": false,
+            "Keys": [
+                {
+                    "Value": false,
+                    "Name": "Enable",
+                    "Description": "If already in-game, requires a restart to change.",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.ToggleKey"
+                },
+                {
+                    "Options": [
+                        "None",
+                        "Bows Only",
+                        "All Weapons"
+                    ],
+                    "Value": 1,
+                    "Name": "AccuracyScaling",
+                    "Description": "Whether Power affects the accuracy of attacks",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.MultipleChoiceKey"
+                },
+                {
+                    "Options": [
+                        "Random Range (Vanilla)",
+                        "Random Range with Scaling",
+                        "Deterministic"
+                    ],
+                    "Value": 2,
+                    "Name": "Damage",
+                    "Description": "Method of calculating the damage of an attack",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.MultipleChoiceKey"
+                },
+                {
+                    "Options": [
+                        "None",
+                        "Crosshair",
+                        "Widget"
+                    ],
+                    "Value": 2,
+                    "Name": "Indicator",
+                    "Description": "Represents the current Power Level",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.MultipleChoiceKey"
+                },
+                {
+                    "Min": 0.0,
+                    "Max": 10.0,
+                    "Value": 1.0,
+                    "Name": "IndicatorScale",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderFloatKey"
+                },
+                {
+                    "Min": 0.0,
+                    "Max": 2.0,
+                    "Value": 1.0,
+                    "Name": "CrosshairDistance",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderFloatKey"
+                },
+                {
+                    "Value": {
+                        "First": 0.25,
+                        "Second": 0.75
+                    },
+                    "Name": "WidgetOffset",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.TupleFloatKey"
+                },
+                {
+                    "Value": {
+                        "r": 0,
+                        "g": 255,
+                        "b": 0,
+                        "a": 255
+                    },
+                    "Name": "WidgetColorMax",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.ColorKey"
+                },
+                {
+                    "Value": {
+                        "r": 128,
+                        "g": 0,
+                        "b": 0,
+                        "a": 255
+                    },
+                    "Name": "WidgetColorMin",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.ColorKey"
+                },
+                {
+                    "Value": false,
+                    "Name": "DebugMessages",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.ToggleKey"
+                }
+            ],
+            "$version": "v1"
+        },
+        {
+            "Name": "ImprovedArchery",
+            "Description": null,
+            "IsAdvanced": false,
+            "Keys": [
+                {
+                    "Options": [
+                        "Vanilla",
+                        "Global",
+                        "Typed"
+                    ],
+                    "Value": 0,
+                    "Name": "Mode",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.MultipleChoiceKey"
+                },
+                {
+                    "Min": 0.0,
+                    "Max": 2.0,
+                    "Value": 0.4,
+                    "Name": "CollisionRadius",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderFloatKey"
+                },
+                {
+                    "Min": 0.0,
+                    "Max": 10.0,
+                    "Value": 1.0,
+                    "Name": "Speed",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderFloatKey"
+                },
+                {
+                    "Min": 0.0,
+                    "Max": 3.0,
+                    "Value": 0.0,
+                    "Name": "AngleOffset",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderFloatKey"
+                },
+                {
+                    "Min": 0.0,
+                    "Max": 3.0,
+                    "Value": 0.0,
+                    "Name": "MaxDispersion",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderFloatKey"
+                },
+                {
+                    "Min": 0.0,
+                    "Max": 10.0,
+                    "Value": 0.0,
+                    "Name": "Gravity",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderFloatKey"
+                },
+                {
+                    "Value": false,
+                    "Name": "ShowTrajectory",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.ToggleKey"
+                },
+                {
+                    "Min": 1.0,
+                    "Max": 5.0,
+                    "Value": 1.0,
+                    "Name": "DrawZoomMagnification",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderFloatKey"
+                },
+                {
+                    "Min": 0.0,
+                    "Max": 5.0,
+                    "Value": 1.0,
+                    "Name": "DrawZoomDuration",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderFloatKey"
+                },
+                {
+                    "Min": 0.0,
+                    "Max": 5.0,
+                    "Value": 1.0,
+                    "Name": "DrawZoomDelay",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderFloatKey"
+                },
+                {
+                    "Value": false,
+                    "Name": "DrawScaling",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.ToggleKey"
+                },
+                {
+                    "Min": 0.0,
+                    "Max": 5.0,
+                    "Value": 1.0,
+                    "Name": "DrawScaleDuration",
+                    "Description": null,
                     "$version": "v1",
                     "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderFloatKey"
                 }
