@@ -1,0 +1,135 @@
+{
+    "Version": null,
+    "Sections": [
+        {
+            "Name": "Encounters",
+            "Description": null,
+            "IsAdvanced": false,
+            "Keys": [
+                {
+                    "Min": 0,
+                    "Max": 100,
+                    "Value": 5,
+                    "Name": "CautiousEncounterChance",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderIntKey"
+                },
+                {
+                    "Min": 0,
+                    "Max": 100,
+                    "Value": 15,
+                    "Name": "RecklessEncounterChance",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderIntKey"
+                },
+                {
+                    "Min": 0,
+                    "Max": 100,
+                    "Value": 10,
+                    "Name": "CautiousSurpriseChance",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderIntKey"
+                },
+                {
+                    "Min": 0,
+                    "Max": 100,
+                    "Value": 33,
+                    "Name": "RecklessSurpriseChance",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderIntKey"
+                },
+                {
+                    "Min": -30,
+                    "Max": 30,
+                    "Value": 0,
+                    "Name": "EncounterLevelAdjustment",
+                    "Description": "Value added/subtracted from the player level when generating encounters",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderIntKey"
+                },
+                {
+                    "Min": 0,
+                    "Max": 30,
+                    "Value": 0,
+                    "Name": "StaticEncounterLevel",
+                    "Description": "If non-zero, this value will be used instead of player level during encounter generation",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderIntKey"
+                }
+            ],
+            "$version": "v1"
+        },
+        {
+            "Name": "LocationSeeking",
+            "Description": null,
+            "IsAdvanced": false,
+            "Keys": [
+                {
+                    "Min": 0,
+                    "Max": 10,
+                    "Value": 5,
+                    "Name": "Range",
+                    "Description": "Distance from the point to check neighbors. Set to 0 to disable Location Seeking.",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderIntKey"
+                },
+                {
+                    "Min": 0,
+                    "Max": 90,
+                    "Value": 15,
+                    "Name": "Diversion",
+                    "Description": "Maximum angle offset from the path direction",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderIntKey"
+                }
+            ],
+            "$version": "v1"
+        },
+        {
+            "Name": "Spawns",
+            "Description": "WORK-IN-PROGRESS",
+            "IsAdvanced": false,
+            "Keys": [
+                {
+                    "Options": [
+                        "Vanilla",
+                        "Warm Ashes",
+                        "Vanilla + Warm Ashes"
+                    ],
+                    "Value": 0,
+                    "Name": "EncounterPool",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.MultipleChoiceKey"
+                },
+                {
+                    "Value": true,
+                    "Name": "VanillaEncounterGroups",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.ToggleKey"
+                }
+            ],
+            "$version": "v1"
+        },
+        {
+            "Name": "Feedback",
+            "Description": null,
+            "IsAdvanced": false,
+            "Keys": [
+                {
+                    "Value": false,
+                    "Name": "NotebookLog",
+                    "Description": "Adds notes to the Notebook during journeys",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.ToggleKey"
+                }
+            ],
+            "$version": "v1"
+        }
+    ]
+}
