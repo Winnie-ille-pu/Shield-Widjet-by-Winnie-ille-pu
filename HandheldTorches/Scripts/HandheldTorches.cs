@@ -333,12 +333,12 @@ public class HandheldTorches : MonoBehaviour
         PlayerEnterExit.OnTransitionExterior += DestroyLightSources_OnTransition;
         PlayerEnterExit.OnTransitionDungeonInterior += DestroyLightSources_OnTransition;
         PlayerEnterExit.OnTransitionDungeonExterior += DestroyLightSources_OnTransition;
-        PlayerActivate.RegisterCustomActivation(mod, 4000, 0, PickUpLightSource, 3.2f);
-        PlayerActivate.RegisterCustomActivation(mod, 4000, 10, PickUpLightSource, 3.2f);
-        PlayerActivate.RegisterCustomActivation(mod, 4000, 1, PickUpLightSource, 3.2f);
-        PlayerActivate.RegisterCustomActivation(mod, 4000, 11, PickUpLightSource, 3.2f);
-        PlayerActivate.RegisterCustomActivation(mod, 4000, 2, PickUpLightSource, 3.2f);
-        PlayerActivate.RegisterCustomActivation(mod, 4000, 12, PickUpLightSource, 3.2f);
+        PlayerActivate.RegisterCustomActivation(mod, 112358, 0, PickUpLightSource, 3.2f);
+        PlayerActivate.RegisterCustomActivation(mod, 112358, 10, PickUpLightSource, 3.2f);
+        PlayerActivate.RegisterCustomActivation(mod, 112358, 1, PickUpLightSource, 3.2f);
+        PlayerActivate.RegisterCustomActivation(mod, 112358, 11, PickUpLightSource, 3.2f);
+        PlayerActivate.RegisterCustomActivation(mod, 112358, 2, PickUpLightSource, 3.2f);
+        PlayerActivate.RegisterCustomActivation(mod, 112358, 12, PickUpLightSource, 3.2f);
 
         DaggerfallUI.UIManager.OnWindowChange += OnRestWindowOpen;
         DaggerfallUI.UIManager.OnWindowChange += OnRestWindowClose;
@@ -396,7 +396,7 @@ public class HandheldTorches : MonoBehaviour
                 PlayerActivate.DefaultActivationDistance,
                 (hit) =>
                 {
-                    if (hit.transform.name.Length > 16 && hit.transform.name.Contains("TEXTURE.4000"))
+                    if (hit.transform.name.Length > 16 && hit.transform.name.Contains("TEXTURE.112358"))
                     {
                         if (hit.transform.name.Contains("Index=2"))
                             return "Holy Candle";
@@ -500,7 +500,7 @@ public class HandheldTorches : MonoBehaviour
     void InitializeTextures()
     {
         textures = new List<Texture2D>();
-        int archive = 4001;
+        int archive = 112359;
         int record = 0;
         int frame = 0;
         for (int i = 0; i < 99; i++)
@@ -568,7 +568,14 @@ public class HandheldTorches : MonoBehaviour
         positionOffset.y += positionOffset.height * Offset.y;
 
         //stop the texture from going higher than its bottom edge
-        positionOffset.y = Mathf.Clamp(positionOffset.y, screenRect.height - positionOffset.height, screenRect.height);
+        float largeHUDOffsetHeight = 0;
+        if (DaggerfallUI.Instance.DaggerfallHUD != null &&
+            DaggerfallUnity.Settings.LargeHUD &&
+            (DaggerfallUnity.Settings.LargeHUDUndockedOffsetWeapon || DaggerfallUnity.Settings.LargeHUDDocked))
+        {
+            largeHUDOffsetHeight = (int)DaggerfallUI.Instance.DaggerfallHUD.LargeHUD.ScreenHeight;
+        }
+        positionOffset.y = Mathf.Clamp(positionOffset.y, screenRect.height - positionOffset.height- largeHUDOffsetHeight, screenRect.height);
 
         if (stepTransforms)
         {
@@ -959,6 +966,13 @@ public class HandheldTorches : MonoBehaviour
             {
                 weaponOffsetHeight = (int)DaggerfallUI.Instance.DaggerfallHUD.LargeHUD.ScreenHeight;
             }
+            weaponOffsetHeight = 0;
+            if (DaggerfallUI.Instance.DaggerfallHUD != null &&
+                DaggerfallUnity.Settings.LargeHUD &&
+                (DaggerfallUnity.Settings.LargeHUDUndockedOffsetWeapon || DaggerfallUnity.Settings.LargeHUDDocked))
+            {
+                weaponOffsetHeight = (int)DaggerfallUI.Instance.DaggerfallHUD.LargeHUD.ScreenHeight;
+            }
 
             if (screenRect != screenRectLast || weaponOffsetHeight != weaponOffsetHeightLast)
                 RefreshSprite();
@@ -1295,6 +1309,13 @@ public class HandheldTorches : MonoBehaviour
             handLeft = false;
         }
 
+        //prevent transformed lycanthropes from carrying a torch
+        if (GameManager.Instance.PlayerEffectManager.IsTransformedLycanthrope())
+        {
+            handRight = false;
+            handLeft = false;
+        }
+
         if (mirrorSprite)
         {
             if (DaggerfallUnity.Settings.Handedness == 1)
@@ -1330,6 +1351,7 @@ public class HandheldTorches : MonoBehaviour
                         GameManager.Instance.PlayerObject.GetComponent<EnablePlayerTorch>().PlayerTorch.transform.localPosition = new Vector3(-0.34f * x, 0.9f, 0.25f);
                 }
 
+                SetSheathe();
                 positionCurrent = positionTarget;
             }
         }
@@ -1518,17 +1540,17 @@ public class HandheldTorches : MonoBehaviour
         //DaggerfallUnityItem item = ItemHelper.GetItem;
         if (itemTemplateIndex == 247) //is torch
         {
-            billboardObject = GameObjectHelper.CreateDaggerfallBillboardGameObject(4000, 0 + indexOffset, null);
+            billboardObject = GameObjectHelper.CreateDaggerfallBillboardGameObject(112358, 0 + indexOffset, null);
             //billboardObject.name = "HandheldTorches - Torch";
         }
         else if (itemTemplateIndex == 253) //is candle
         {
-            billboardObject = GameObjectHelper.CreateDaggerfallBillboardGameObject(4000, 1 + indexOffset, null);
+            billboardObject = GameObjectHelper.CreateDaggerfallBillboardGameObject(112358, 1 + indexOffset, null);
             //billboardObject.name = "HandheldTorches - Candle";
         }
         else if (itemTemplateIndex == 269) //is holy candle
         {
-            billboardObject = GameObjectHelper.CreateDaggerfallBillboardGameObject(4000, 2 + indexOffset, null);
+            billboardObject = GameObjectHelper.CreateDaggerfallBillboardGameObject(112358, 2 + indexOffset, null);
             //billboardObject.name = "HandheldTorches - Holy Candle";
         }
         billboardObject.transform.position = position;
@@ -1598,7 +1620,7 @@ public class HandheldTorches : MonoBehaviour
 
         //spawn billboard object
         GameObject billboardObject = null;
-        billboardObject = GameObjectHelper.CreateDaggerfallBillboardGameObject(4000, 0 + indexOffset, null);
+        billboardObject = GameObjectHelper.CreateDaggerfallBillboardGameObject(112358, 0 + indexOffset, null);
         billboardObject.transform.position = pos;
         billboardObject.layer = LayerMask.NameToLayer("Ignore Raycast");
 
