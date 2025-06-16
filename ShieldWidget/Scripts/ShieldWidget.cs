@@ -136,6 +136,10 @@ public class ShieldWidget : MonoBehaviour
     int indexCurrent;
     int frameCurrent;
 
+    //attack reset delay time
+    float attackDelayTime = 0.1f;
+    float attackDelayTimer = 0;
+
     //EOTB compatibility
     bool isInThirdPerson;
 
@@ -297,7 +301,7 @@ public class ShieldWidget : MonoBehaviour
     void InitializeShieldTextures()
     {
         shieldTextures = new Texture2D[600];
-        int archive = 700;
+        int archive = 112360;
         int record = 0;
         int frame = 0;
         for (int i = 0; i < 600; i++)
@@ -500,14 +504,21 @@ public class ShieldWidget : MonoBehaviour
                         SetAttack();
                     else
                         SetGuard();
+                    attackDelayTimer = 0;
                 }
             }
             else
             {
                 if (attacked)
                 {
-                    attacked = false;
-                    RefreshShield();
+                    //add delay here?
+                    if (attackDelayTimer > attackDelayTime)
+                    {
+                        attacked = false;
+                        RefreshShield();
+                    }
+                    else
+                        attackDelayTimer += Time.deltaTime;
                 }
             }
 
@@ -721,7 +732,14 @@ public class ShieldWidget : MonoBehaviour
         shieldPositionOffset.y += shieldPositionOffset.height * Offset.y;
 
         //stop the texture from going higher than its bottom edge
-        shieldPositionOffset.y = Mathf.Clamp(shieldPositionOffset.y, screenRect.height - shieldPositionOffset.height, screenRect.height);
+        float largeHUDOffsetHeight = 0;
+        if (DaggerfallUI.Instance.DaggerfallHUD != null &&
+            DaggerfallUnity.Settings.LargeHUD &&
+            (DaggerfallUnity.Settings.LargeHUDUndockedOffsetWeapon || DaggerfallUnity.Settings.LargeHUDDocked))
+        {
+            largeHUDOffsetHeight = (int)DaggerfallUI.Instance.DaggerfallHUD.LargeHUD.ScreenHeight;
+        }
+        shieldPositionOffset.y = Mathf.Clamp(shieldPositionOffset.y, screenRect.height - shieldPositionOffset.height - largeHUDOffsetHeight, screenRect.height);
 
         if (animated)
         {
@@ -879,7 +897,7 @@ public class ShieldWidget : MonoBehaviour
             {
                 shieldPositionTarget = new Rect(
                     screenRect.x + screenRect.width,
-                    screenRect.y + screenRect.height,
+                    screenRect.y + screenRect.height - weaponOffsetHeight,
                     shieldTexture.width * scale * weaponScaleX / scaleTextureFactor,
                     shieldTexture.height * scale * weaponScaleY / scaleTextureFactor
                     );
@@ -888,7 +906,7 @@ public class ShieldWidget : MonoBehaviour
             {
                 shieldPositionTarget = new Rect(
                     screenRect.x,
-                    screenRect.y + screenRect.height,
+                    screenRect.y + screenRect.height - weaponOffsetHeight,
                     shieldTexture.width * scale * weaponScaleX / scaleTextureFactor,
                     shieldTexture.height * scale * weaponScaleY / scaleTextureFactor
                     );
@@ -900,7 +918,7 @@ public class ShieldWidget : MonoBehaviour
             {
                 shieldPositionTarget = new Rect(
                     screenRect.x + screenRect.width + (shieldTexture.width * scale * weaponScaleX / scaleTextureFactor),
-                    screenRect.y + screenRect.height + (shieldTexture.height * scale * weaponScaleY / scaleTextureFactor),
+                    screenRect.y + screenRect.height - weaponOffsetHeight + (shieldTexture.height * scale * weaponScaleY / scaleTextureFactor),
                     shieldTexture.width * scale * weaponScaleX / scaleTextureFactor,
                     shieldTexture.height * scale * weaponScaleY / scaleTextureFactor
                     );
@@ -909,7 +927,7 @@ public class ShieldWidget : MonoBehaviour
             {
                 shieldPositionTarget = new Rect(
                     screenRect.x - (shieldTexture.width * scale * weaponScaleX / scaleTextureFactor),
-                    screenRect.y + screenRect.height + (shieldTexture.height * scale * weaponScaleY / scaleTextureFactor),
+                    screenRect.y + screenRect.height - weaponOffsetHeight + (shieldTexture.height * scale * weaponScaleY / scaleTextureFactor),
                     shieldTexture.width * scale * weaponScaleX / scaleTextureFactor,
                     shieldTexture.height * scale * weaponScaleY / scaleTextureFactor
                     );

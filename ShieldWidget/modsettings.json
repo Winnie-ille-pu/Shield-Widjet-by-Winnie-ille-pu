@@ -115,7 +115,7 @@
             "IsAdvanced": false,
             "Keys": [
                 {
-                    "Value": false,
+                    "Value": true,
                     "Name": "Bob",
                     "Description": null,
                     "$version": "v1",
