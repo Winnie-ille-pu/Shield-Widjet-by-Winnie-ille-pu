@@ -51,7 +51,8 @@
                     "Options": [
                         "Vanilla",
                         "Vanilla Typed",
-                        "Custom"
+                        "Custom",
+                        "Custom Typed"
                     ],
                     "Value": 1,
                     "Name": "TextureArchive",

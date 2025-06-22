@@ -1,6 +1,6 @@
 [
     {
-        "index": 600,
+        "index": 1300,
         "name": "Cuirass",
         "baseWeight": 10,
         "hitPoints": 4096,
@@ -20,7 +20,7 @@
         "playerTextureRecord": 3
     },
     {
-        "index": 601,
+        "index": 1301,
         "name": "Gloves",
         "baseWeight": 1,
         "hitPoints": 2048,
@@ -40,7 +40,7 @@
         "playerTextureRecord": 8
     },
     {
-        "index": 602,
+        "index": 1302,
         "name": "Cuisses",
         "baseWeight": 2,
         "hitPoints": 3072,
@@ -60,7 +60,7 @@
         "playerTextureRecord": 10
     },
     {
-        "index": 603,
+        "index": 1303,
         "name": "Left Vambrace",
         "baseWeight": 1.6,
         "hitPoints": 2048,
@@ -80,7 +80,7 @@
         "playerTextureRecord": 17
     },
     {
-        "index": 604,
+        "index": 1304,
         "name": "Right Vambrace",
         "baseWeight": 1.6,
         "hitPoints": 2048,
@@ -100,7 +100,7 @@
         "playerTextureRecord": 22
     },
     {
-        "index": 605,
+        "index": 1305,
         "name": "Helm",
         "baseWeight": 1.5,
         "hitPoints": 2560,
@@ -109,7 +109,7 @@
         "enchantmentPoints": 740,
         "rarity": 3,
         "variants": 6,
-        "drawOrderOrEffect": 0,
+        "drawOrderOrEffect": 55,
         "isBluntWeapon": false,
         "isLiquid": false,
         "isOneHanded": false,
@@ -120,7 +120,7 @@
         "playerTextureRecord": 27
     }
     {
-        "index": 606,
+        "index": 1306,
         "name": "Boots",
         "baseWeight": 1.6,
         "hitPoints": 2560,

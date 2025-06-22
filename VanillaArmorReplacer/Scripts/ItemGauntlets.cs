@@ -13,7 +13,7 @@ namespace VanillaArmorReplacer
 {
     public class ItemGauntlets : DaggerfallUnityItem
     {
-        public const int templateIndex = 601;
+        public const int templateIndex = 1301;
 
         public ItemGauntlets() : base(ItemGroups.Armor, templateIndex)
         {
@@ -22,15 +22,15 @@ namespace VanillaArmorReplacer
         {
             set
             {
-                if (VanillaArmorReplacer.Instance.textureArchive == 2 && (nativeMaterialValue == (int)ArmorMaterialTypes.Leather || nativeMaterialValue == (int)ArmorMaterialTypes.Chain))
+                if (VanillaArmorReplacer.Instance.textureArchive == 3)
                 {
                     base.CurrentVariant = 0;
-                    if (NativeMaterialValue == (int)ArmorMaterialTypes.Leather)
+                    if (NativeMaterialValue == VanillaArmorReplacer.Instance.GetLeatherMaterialValue(nativeMaterialValue))
                     {
                         if (!HasCustomEnchantments && !HasLegacyEnchantments)
                             shortName = VanillaArmorReplacer.Instance.nameGauntletsLeather;
                     }
-                    else if (NativeMaterialValue == (int)ArmorMaterialTypes.Chain)
+                    else if (NativeMaterialValue == VanillaArmorReplacer.Instance.GetChainMaterialValue(nativeMaterialValue))
                     {
                         if (!HasCustomEnchantments && !HasLegacyEnchantments)
                             shortName = VanillaArmorReplacer.Instance.nameGauntletsChain;
@@ -40,16 +40,45 @@ namespace VanillaArmorReplacer
                         if (!HasCustomEnchantments && !HasLegacyEnchantments)
                             shortName = VanillaArmorReplacer.Instance.nameGauntletsPlate;
                     }
+
+                    //set variant
+                    if (NativeMaterialValue != VanillaArmorReplacer.Instance.GetLeatherMaterialValue(nativeMaterialValue) && nativeMaterialValue != (int)ArmorMaterialTypes.Leather)
+                    {
+                        if (message < 0 || message > 1)
+                            message = Random.Range(0, 2);
+                    }
+                    else
+                        message = 0;
+                }
+                else if (VanillaArmorReplacer.Instance.textureArchive == 2 && (nativeMaterialValue == (int)ArmorMaterialTypes.Leather || nativeMaterialValue == (int)ArmorMaterialTypes.Chain))
+                {
+                    base.CurrentVariant = 0;
+                    if (NativeMaterialValue == VanillaArmorReplacer.Instance.GetLeatherMaterialValue(nativeMaterialValue))
+                    {
+                        if (!HasCustomEnchantments && !HasLegacyEnchantments)
+                            shortName = VanillaArmorReplacer.Instance.nameGauntletsLeather;
+                    }
+                    else if (NativeMaterialValue == VanillaArmorReplacer.Instance.GetChainMaterialValue(nativeMaterialValue))
+                    {
+                        if (!HasCustomEnchantments && !HasLegacyEnchantments)
+                            shortName = VanillaArmorReplacer.Instance.nameGauntletsChain;
+                    }
+                    else
+                    {
+                        base.CurrentVariant = 1;
+                        if (!HasCustomEnchantments && !HasLegacyEnchantments)
+                            shortName = VanillaArmorReplacer.Instance.nameGauntletsPlate;
+                    }
                 }
                 else if (VanillaArmorReplacer.Instance.textureArchive == 1)
                 {
-                    if (NativeMaterialValue == (int)ArmorMaterialTypes.Leather)
+                    if (NativeMaterialValue == VanillaArmorReplacer.Instance.GetLeatherMaterialValue(nativeMaterialValue))
                     {
                         base.CurrentVariant = 0;
                         if (!HasCustomEnchantments && !HasLegacyEnchantments)
                             shortName = VanillaArmorReplacer.Instance.nameGauntletsLeather;
                     }
-                    else if (NativeMaterialValue == (int)ArmorMaterialTypes.Chain)
+                    else if (NativeMaterialValue == VanillaArmorReplacer.Instance.GetChainMaterialValue(nativeMaterialValue))
                     {
                         base.CurrentVariant = 1;
                         if (!HasCustomEnchantments && !HasLegacyEnchantments)
@@ -81,9 +110,9 @@ namespace VanillaArmorReplacer
                         base.CurrentVariant = 1;
                         if (!HasCustomEnchantments && !HasLegacyEnchantments)
                         {
-                            if (NativeMaterialValue == (int)ArmorMaterialTypes.Leather)
+                            if (NativeMaterialValue == VanillaArmorReplacer.Instance.GetLeatherMaterialValue(nativeMaterialValue))
                                 shortName = VanillaArmorReplacer.Instance.nameGauntletsLeather;
-                            else if (NativeMaterialValue == (int)ArmorMaterialTypes.Chain)
+                            else if (NativeMaterialValue == VanillaArmorReplacer.Instance.GetChainMaterialValue(nativeMaterialValue))
                                 shortName = VanillaArmorReplacer.Instance.nameGauntletsChain;
                             else
                                 shortName = VanillaArmorReplacer.Instance.nameGauntletsPlate;
@@ -94,11 +123,16 @@ namespace VanillaArmorReplacer
         }
 
         //set gender and phenotype
+
+        //set gender and phenotype
         public override int InventoryTextureArchive
         {
             get
             {
-                if (VanillaArmorReplacer.Instance.textureArchive == 2 && (nativeMaterialValue == (int)ArmorMaterialTypes.Leather || nativeMaterialValue == (int)ArmorMaterialTypes.Chain))
+                if (
+                    VanillaArmorReplacer.Instance.textureArchive == 3 ||
+                    (VanillaArmorReplacer.Instance.textureArchive == 2 && (nativeMaterialValue == (int)ArmorMaterialTypes.Leather || nativeMaterialValue == (int)ArmorMaterialTypes.Chain))
+                    )
                 {
                     int offset = PlayerTextureArchive - ItemBuilder.firstFemaleArchive;
 
@@ -116,149 +150,187 @@ namespace VanillaArmorReplacer
         {
             get
             {
-                if (VanillaArmorReplacer.Instance.textureArchive == 2 && (nativeMaterialValue == (int)ArmorMaterialTypes.Leather || nativeMaterialValue == (int)ArmorMaterialTypes.Chain))
+                if (VanillaArmorReplacer.Instance.textureArchive == 3 ||
+                    (VanillaArmorReplacer.Instance.textureArchive == 2 && (nativeMaterialValue == (int)ArmorMaterialTypes.Leather || nativeMaterialValue == (int)ArmorMaterialTypes.Chain))
+                    )
                 {
                     int offset = 2;
 
+                    if (VanillaArmorReplacer.Instance.textureArchive == 3)
+                    {
+                        //get Typed archive
+                        if (NativeMaterialValue >= (int)ArmorMaterialTypes.Iron)
+                            offset += 200;
+                        else if (NativeMaterialValue == VanillaArmorReplacer.Instance.GetChainMaterialValue(nativeMaterialValue) || nativeMaterialValue == (int)ArmorMaterialTypes.Chain)
+                            offset += 100;
+
+                        //get variant
+                        if (message != -1)
+                            offset += 1000 * message;
+                    }
+                    else
+                    {
+                        //get custom archive
+                        if (nativeMaterialValue == (int)ArmorMaterialTypes.Daedric)
+                            offset += 1100;
+                        else if (nativeMaterialValue == (int)ArmorMaterialTypes.Orcish)
+                            offset += 1000;
+                        else if (nativeMaterialValue == (int)ArmorMaterialTypes.Ebony)
+                            offset += 900;
+                        else if (nativeMaterialValue == (int)ArmorMaterialTypes.Adamantium)
+                            offset += 800;
+                        else if (nativeMaterialValue == (int)ArmorMaterialTypes.Mithril)
+                            offset += 700;
+                        else if (nativeMaterialValue == (int)ArmorMaterialTypes.Dwarven)
+                            offset += 600;
+                        else if (nativeMaterialValue == (int)ArmorMaterialTypes.Elven)
+                            offset += 500;
+                        else if (nativeMaterialValue == (int)ArmorMaterialTypes.Silver)
+                            offset += 400;
+                        else if (nativeMaterialValue == (int)ArmorMaterialTypes.Steel)
+                            offset += 300;
+                        else if (nativeMaterialValue == (int)ArmorMaterialTypes.Iron)
+                            offset += 200;
+                        else if (nativeMaterialValue == (int)ArmorMaterialTypes.Chain)
+                            offset += 100;
+                    }
+
+
+                    //get Material variant
                     if (nativeMaterialValue == (int)ArmorMaterialTypes.Daedric)
-                        offset += 1100;
+                        offset += 90;
                     else if (nativeMaterialValue == (int)ArmorMaterialTypes.Orcish)
-                        offset += 1000;
+                        offset += 80;
                     else if (nativeMaterialValue == (int)ArmorMaterialTypes.Ebony)
-                        offset += 900;
+                        offset += 70;
                     else if (nativeMaterialValue == (int)ArmorMaterialTypes.Adamantium)
-                        offset += 800;
+                        offset += 60;
                     else if (nativeMaterialValue == (int)ArmorMaterialTypes.Mithril)
-                        offset += 700;
+                        offset += 50;
                     else if (nativeMaterialValue == (int)ArmorMaterialTypes.Dwarven)
-                        offset += 600;
+                        offset += 40;
                     else if (nativeMaterialValue == (int)ArmorMaterialTypes.Elven)
-                        offset += 500;
+                        offset += 30;
                     else if (nativeMaterialValue == (int)ArmorMaterialTypes.Silver)
-                        offset += 400;
+                        offset += 20;
                     else if (nativeMaterialValue == (int)ArmorMaterialTypes.Steel)
-                        offset += 300;
-                    else if (nativeMaterialValue == (int)ArmorMaterialTypes.Iron)
-                        offset += 200;
-                    else if (nativeMaterialValue == (int)ArmorMaterialTypes.Chain)
-                        offset += 100;
+                        offset += 10;
 
                     dyeColor = DyeColors.Silver;
 
                     return offset;
                 }
                 else
+                {
+                    dyeColor = DaggerfallUnity.Instance.ItemHelper.GetArmorDyeColor((ArmorMaterialTypes)nativeMaterialValue);
                     return base.InventoryTextureRecord;
+                }
             }
         }
 
-        // Gets native material value, modifying it to use the 'chain' value for first byte if plate.
-        // This fools the DFU code into treating this item as chainmail for forbidden checks etc.
         public override int NativeMaterialValue
         {
             get
             {
-                if (nativeMaterialValue == (int)ArmorMaterialTypes.Leather)
-                    return (int)ArmorMaterialTypes.Leather;
-                else if (nativeMaterialValue == (int)ArmorMaterialTypes.Chain)
-                    return (int)ArmorMaterialTypes.Chain;
+                if (nativeMaterialValue == (int)ArmorMaterialTypes.Leather || nativeMaterialValue == (int)ArmorMaterialTypes.Chain)
+                    return nativeMaterialValue;
                 else if (nativeMaterialValue == (int)ArmorMaterialTypes.Iron)
                 {
                     if (VanillaArmorReplacer.Instance.armorIron == 1)
-                        return (int)ArmorMaterialTypes.Chain;
+                        return VanillaArmorReplacer.Instance.GetNativeMaterialValueBitwise(nativeMaterialValue, (int)ArmorMaterialTypes.Chain);
                     else
                     if (VanillaArmorReplacer.Instance.armorIron == 2)
-                        return (int)ArmorMaterialTypes.Leather;
+                        return VanillaArmorReplacer.Instance.GetNativeMaterialValueBitwise(nativeMaterialValue, (int)ArmorMaterialTypes.Leather);
                     else
                         return nativeMaterialValue;
                 }
                 else if (nativeMaterialValue == (int)ArmorMaterialTypes.Steel)
                 {
                     if (VanillaArmorReplacer.Instance.armorSteel == 1)
-                        return (int)ArmorMaterialTypes.Chain;
+                        return VanillaArmorReplacer.Instance.GetNativeMaterialValueBitwise(nativeMaterialValue, (int)ArmorMaterialTypes.Chain);
                     else
                     if (VanillaArmorReplacer.Instance.armorSteel == 2)
-                        return (int)ArmorMaterialTypes.Leather;
+                        return VanillaArmorReplacer.Instance.GetNativeMaterialValueBitwise(nativeMaterialValue, (int)ArmorMaterialTypes.Leather);
                     else
                         return nativeMaterialValue;
                 }
                 else if (nativeMaterialValue == (int)ArmorMaterialTypes.Silver)
                 {
                     if (VanillaArmorReplacer.Instance.armorSilver == 1)
-                        return (int)ArmorMaterialTypes.Chain;
+                        return VanillaArmorReplacer.Instance.GetNativeMaterialValueBitwise(nativeMaterialValue, (int)ArmorMaterialTypes.Chain);
                     else
                     if (VanillaArmorReplacer.Instance.armorSilver == 2)
-                        return (int)ArmorMaterialTypes.Leather;
+                        return VanillaArmorReplacer.Instance.GetNativeMaterialValueBitwise(nativeMaterialValue, (int)ArmorMaterialTypes.Leather);
                     else
                         return nativeMaterialValue;
                 }
                 else if (nativeMaterialValue == (int)ArmorMaterialTypes.Elven)
                 {
                     if (VanillaArmorReplacer.Instance.armorElven == 1)
-                        return (int)ArmorMaterialTypes.Chain;
+                        return VanillaArmorReplacer.Instance.GetNativeMaterialValueBitwise(nativeMaterialValue, (int)ArmorMaterialTypes.Chain);
                     else
                     if (VanillaArmorReplacer.Instance.armorElven == 2)
-                        return (int)ArmorMaterialTypes.Leather;
+                        return VanillaArmorReplacer.Instance.GetNativeMaterialValueBitwise(nativeMaterialValue, (int)ArmorMaterialTypes.Leather);
                     else
                         return nativeMaterialValue;
                 }
                 else if (nativeMaterialValue == (int)ArmorMaterialTypes.Dwarven)
                 {
                     if (VanillaArmorReplacer.Instance.armorDwarven == 1)
-                        return (int)ArmorMaterialTypes.Chain;
+                        return VanillaArmorReplacer.Instance.GetNativeMaterialValueBitwise(nativeMaterialValue, (int)ArmorMaterialTypes.Chain);
                     else
                     if (VanillaArmorReplacer.Instance.armorDwarven == 2)
-                        return (int)ArmorMaterialTypes.Leather;
+                        return VanillaArmorReplacer.Instance.GetNativeMaterialValueBitwise(nativeMaterialValue, (int)ArmorMaterialTypes.Leather);
                     else
                         return nativeMaterialValue;
                 }
                 else if (nativeMaterialValue == (int)ArmorMaterialTypes.Mithril)
                 {
                     if (VanillaArmorReplacer.Instance.armorMithril == 1)
-                        return (int)ArmorMaterialTypes.Chain;
+                        return VanillaArmorReplacer.Instance.GetNativeMaterialValueBitwise(nativeMaterialValue, (int)ArmorMaterialTypes.Chain);
                     else
                     if (VanillaArmorReplacer.Instance.armorMithril == 2)
-                        return (int)ArmorMaterialTypes.Leather;
+                        return VanillaArmorReplacer.Instance.GetNativeMaterialValueBitwise(nativeMaterialValue, (int)ArmorMaterialTypes.Leather);
                     else
                         return nativeMaterialValue;
                 }
                 else if (nativeMaterialValue == (int)ArmorMaterialTypes.Adamantium)
                 {
                     if (VanillaArmorReplacer.Instance.armorAdamantium == 1)
-                        return (int)ArmorMaterialTypes.Chain;
+                        return VanillaArmorReplacer.Instance.GetNativeMaterialValueBitwise(nativeMaterialValue, (int)ArmorMaterialTypes.Chain);
                     else
                     if (VanillaArmorReplacer.Instance.armorAdamantium == 2)
-                        return (int)ArmorMaterialTypes.Leather;
+                        return VanillaArmorReplacer.Instance.GetNativeMaterialValueBitwise(nativeMaterialValue, (int)ArmorMaterialTypes.Leather);
                     else
                         return nativeMaterialValue;
                 }
                 else if (nativeMaterialValue == (int)ArmorMaterialTypes.Ebony)
                 {
                     if (VanillaArmorReplacer.Instance.armorEbony == 1)
-                        return (int)ArmorMaterialTypes.Chain;
+                        return VanillaArmorReplacer.Instance.GetNativeMaterialValueBitwise(nativeMaterialValue, (int)ArmorMaterialTypes.Chain);
                     else
                     if (VanillaArmorReplacer.Instance.armorEbony == 2)
-                        return (int)ArmorMaterialTypes.Leather;
+                        return VanillaArmorReplacer.Instance.GetNativeMaterialValueBitwise(nativeMaterialValue, (int)ArmorMaterialTypes.Leather);
                     else
                         return nativeMaterialValue;
                 }
                 else if (nativeMaterialValue == (int)ArmorMaterialTypes.Orcish)
                 {
                     if (VanillaArmorReplacer.Instance.armorOrcish == 1)
-                        return (int)ArmorMaterialTypes.Chain;
+                        return VanillaArmorReplacer.Instance.GetNativeMaterialValueBitwise(nativeMaterialValue, (int)ArmorMaterialTypes.Chain);
                     else
                     if (VanillaArmorReplacer.Instance.armorOrcish == 2)
-                        return (int)ArmorMaterialTypes.Leather;
+                        return VanillaArmorReplacer.Instance.GetNativeMaterialValueBitwise(nativeMaterialValue, (int)ArmorMaterialTypes.Leather);
                     else
                         return nativeMaterialValue;
                 }
                 else if (nativeMaterialValue == (int)ArmorMaterialTypes.Daedric)
                 {
                     if (VanillaArmorReplacer.Instance.armorDaedric == 1)
-                        return (int)ArmorMaterialTypes.Chain;
+                        return VanillaArmorReplacer.Instance.GetNativeMaterialValueBitwise(nativeMaterialValue, (int)ArmorMaterialTypes.Chain);
                     else
                     if (VanillaArmorReplacer.Instance.armorDaedric == 2)
-                        return (int)ArmorMaterialTypes.Leather;
+                        return VanillaArmorReplacer.Instance.GetNativeMaterialValueBitwise(nativeMaterialValue, (int)ArmorMaterialTypes.Leather);
                     else
                         return nativeMaterialValue;
                 }

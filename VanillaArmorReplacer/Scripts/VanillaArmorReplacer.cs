@@ -93,6 +93,35 @@ namespace VanillaArmorReplacer
         byte[] dyeOrcish = new byte[] { 0xC6, 0xC7, 0xC8, 0xC9, 0xCA, 0xCB, 0xCC, 0xCD, 0xCE, 0xCF, 0xD8, 0xD9, 0xDA, 0xDB, 0xDC, 0xDD };
         byte[] dyeDaedric = new byte[] { 0xEF, 0xF0, 0xF1, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7, 0xF8, 0xF9, 0xFA, 0xFB, 0xFC, 0xFD, 0xFE };
 
+        public int GetNativeMaterialValueBitwise(int nativeMaterialValue, int spoofMaterialValue)
+        {
+            if (nativeMaterialValue == (int)ArmorMaterialTypes.Leather || nativeMaterialValue == (int)ArmorMaterialTypes.Chain)
+                return nativeMaterialValue;
+
+            if (spoofMaterialValue == (int)ArmorMaterialTypes.Chain)
+                return nativeMaterialValue - 0x0100;
+            else if (spoofMaterialValue == (int)ArmorMaterialTypes.Leather)
+                return nativeMaterialValue - 0x0200;
+            else
+                return spoofMaterialValue;
+        }
+
+        public int GetLeatherMaterialValue(int nativeMaterialValue)
+        {
+            if (nativeMaterialValue == (int)ArmorMaterialTypes.Leather)
+                return nativeMaterialValue;
+
+            return nativeMaterialValue - 0x0200;
+        }
+
+        public int GetChainMaterialValue(int nativeMaterialValue)
+        {
+            if (nativeMaterialValue == (int)ArmorMaterialTypes.Chain)
+                return nativeMaterialValue;
+
+            return nativeMaterialValue - 0x0100;
+        }
+
         void Awake()
         {
             ModSettings settings = mod.GetSettings();
@@ -322,59 +351,39 @@ namespace VanillaArmorReplacer
                     switch (templateIndex)
                     {
                         case 102:
-                            newItem = ItemBuilder.CreateItem(ItemGroups.Armor, 600);
+                            newItem = ItemBuilder.CreateItem(ItemGroups.Armor, 1300);
                             break;  //cuirass
                         case 103:
-                            newItem = ItemBuilder.CreateItem(ItemGroups.Armor, 601);
+                            newItem = ItemBuilder.CreateItem(ItemGroups.Armor, 1301);
                             break;  //gauntlets
                         case 104:
-                            newItem = ItemBuilder.CreateItem(ItemGroups.Armor, 602);
+                            newItem = ItemBuilder.CreateItem(ItemGroups.Armor, 1302);
                             break;  //greaves
                         case 105:
-                            newItem = ItemBuilder.CreateItem(ItemGroups.Armor, 603);
+                            newItem = ItemBuilder.CreateItem(ItemGroups.Armor, 1303);
                             break;  //left pauldron
                         case 106:
-                            newItem = ItemBuilder.CreateItem(ItemGroups.Armor, 604);
+                            newItem = ItemBuilder.CreateItem(ItemGroups.Armor, 1304);
                             break;  //right pauldron
                         case 107:
-                            newItem = ItemBuilder.CreateItem(ItemGroups.Armor, 605);
+                            newItem = ItemBuilder.CreateItem(ItemGroups.Armor, 1305);
                             break;  //helm
                         case 108:
-                            newItem = ItemBuilder.CreateItem(ItemGroups.Armor, 606);
+                            newItem = ItemBuilder.CreateItem(ItemGroups.Armor, 1306);
                             break;  //boots
                     }
 
                     if (newItem != null)
                     {
                         //save the variant
-                        ItemCuirass hauberk = newItem as ItemCuirass;
-                        ItemGauntlets gauntlets = newItem as ItemGauntlets;
-                        ItemGreaves greaves = newItem as ItemGreaves;
-                        ItemPauldronLeft leftPauldron = newItem as ItemPauldronLeft;
-                        ItemPauldronRight rightPauldron = newItem as ItemPauldronRight;
-                        ItemHelm helm = newItem as ItemHelm;
-                        ItemBoots boots = newItem as ItemBoots;
-
-                        if (hauberk != null)
-                            hauberk.message = item.CurrentVariant;
-                        if (gauntlets != null)
-                            gauntlets.message = item.CurrentVariant;
-                        if (greaves != null)
-                            greaves.message = item.CurrentVariant;
-                        if (leftPauldron != null)
-                            leftPauldron.message = item.CurrentVariant;
-                        if (rightPauldron != null)
-                            rightPauldron.message = item.CurrentVariant;
-                        if (helm != null)
-                            helm.message = item.CurrentVariant;
-                        if (boots != null)
-                            boots.message = item.CurrentVariant;
+                        if (textureArchive != 3)
+                            newItem.message = item.CurrentVariant;
+                        else
+                            newItem.message = -1;
 
                         //Debug.Log(item.ItemName + " variant is " + item.CurrentVariant.ToString());
 
                         ItemBuilder.ApplyArmorSettings(newItem, player.Gender, player.Race, (ArmorMaterialTypes)item.nativeMaterialValue,item.CurrentVariant);
-                        //newItem.LowerCondition(item.maxCondition-item.currentCondition);
-                        //newItem.currentCondition = newItem.maxCondition * (item.currentCondition/item.maxCondition);
                         newItem.currentCondition = item.currentCondition;
 
                         if (item.HasLegacyEnchantments || item.HasCustomEnchantments)
@@ -396,7 +405,7 @@ namespace VanillaArmorReplacer
                         if (equipped && inventory)
                         {
                             //player.ItemEquipTable.UnequipItem(item);
-                            player.ItemEquipTable.EquipItem(newItem,true);
+                            player.ItemEquipTable.EquipItem(newItem,true, false);
                         }
                     }
                 }
@@ -428,7 +437,7 @@ namespace VanillaArmorReplacer
                 int templateIndex = item.TemplateIndex;
 
                 //check if custom armor
-                if (templateIndex >= 600 && templateIndex <= 606)
+                if (templateIndex >= 1300 && templateIndex <= 1306)
                 {
                     itemsToRemove.Add(item);
 
@@ -438,31 +447,31 @@ namespace VanillaArmorReplacer
 
                     switch (templateIndex)
                     {
-                        case 600:
+                        case 1300:
                             //newItem = ItemBuilder.CreateArmor(player.Gender, player.Race, Armor.Cuirass, (ArmorMaterialTypes)item.nativeMaterialValue);
-                            newItem = ItemBuilder.CreateItem(ItemGroups.Armor,102);
+                            newItem = ItemBuilder.CreateItem(ItemGroups.Armor, 102);
                             break;  //cuirass
-                        case 601:
+                        case 1301:
                             //newItem = ItemBuilder.CreateArmor(player.Gender, player.Race, Armor.Gauntlets, (ArmorMaterialTypes)item.nativeMaterialValue);
                             newItem = ItemBuilder.CreateItem(ItemGroups.Armor, 103);
                             break;  //gauntlets
-                        case 602:
+                        case 1302:
                             //newItem = ItemBuilder.CreateArmor(player.Gender, player.Race, Armor.Greaves, (ArmorMaterialTypes)item.nativeMaterialValue);
                             newItem = ItemBuilder.CreateItem(ItemGroups.Armor, 104);
                             break;  //greaves
-                        case 603:
+                        case 1303:
                             //newItem = ItemBuilder.CreateArmor(player.Gender, player.Race, Armor.Left_Pauldron, (ArmorMaterialTypes)item.nativeMaterialValue);
                             newItem = ItemBuilder.CreateItem(ItemGroups.Armor, 105);
                             break;  //left pauldron
-                        case 604:
+                        case 1304:
                             //newItem = ItemBuilder.CreateArmor(player.Gender, player.Race, Armor.Right_Pauldron, (ArmorMaterialTypes)item.nativeMaterialValue);
                             newItem = ItemBuilder.CreateItem(ItemGroups.Armor, 106);
                             break;  //right pauldron
-                        case 605:
+                        case 1305:
                             //newItem = ItemBuilder.CreateArmor(player.Gender, player.Race, Armor.Helm, (ArmorMaterialTypes)item.nativeMaterialValue);
                             newItem = ItemBuilder.CreateItem(ItemGroups.Armor, 107);
                             break;  //helm
-                        case 606:
+                        case 1306:
                             //newItem = ItemBuilder.CreateArmor(player.Gender, player.Race, Armor.Boots, (ArmorMaterialTypes)item.nativeMaterialValue);
                             newItem = ItemBuilder.CreateItem(ItemGroups.Armor, 108);
                             break;  //boots
@@ -471,29 +480,7 @@ namespace VanillaArmorReplacer
                     if (newItem != null)
                     {
                         //set the variant
-                        int variant = -1;
-                        ItemCuirass hauberk = item as ItemCuirass;
-                        ItemGauntlets gauntlets = item as ItemGauntlets;
-                        ItemGreaves greaves = item as ItemGreaves;
-                        ItemPauldronLeft leftPauldron = item as ItemPauldronLeft;
-                        ItemPauldronRight rightPauldron = item as ItemPauldronRight;
-                        ItemHelm helm = item as ItemHelm;
-                        ItemBoots boots = item as ItemBoots;
-
-                        if (hauberk != null)
-                            variant = hauberk.message;
-                        if (gauntlets != null)
-                            variant = gauntlets.message;
-                        if (greaves != null)
-                            variant = greaves.message;
-                        if (leftPauldron != null)
-                            variant = leftPauldron.message;
-                        if (rightPauldron != null)
-                            variant = rightPauldron.message;
-                        if (helm != null)
-                            variant = helm.message;
-                        if (boots != null)
-                            variant = boots.message;
+                        int variant = item.message;
 
                         //Debug.Log(newItem.ItemName + " variant is " + variant.ToString());
 
@@ -520,7 +507,7 @@ namespace VanillaArmorReplacer
                             newItem.IdentifyItem();
 
                         if (equipped && inventory)
-                            player.ItemEquipTable.EquipItem(newItem,true);
+                            player.ItemEquipTable.EquipItem(newItem,true, false);
                     }
                 }
             }
@@ -535,6 +522,8 @@ namespace VanillaArmorReplacer
             if (collection.Count < 1)
                 return;
 
+            List<DaggerfallUnityItem> itemsToRemove = new List<DaggerfallUnityItem>();
+
             PlayerEntity player = GameManager.Instance.PlayerEntity;
 
             for (int i = 0; i < collection.Count; i++)
@@ -544,41 +533,97 @@ namespace VanillaArmorReplacer
                 int templateIndex = item.TemplateIndex;
 
                 //check if custom armor
-                if (templateIndex >= 600 && templateIndex <= 606)
+                if (templateIndex >= 1300 && templateIndex <= 1306)
                 {
                     //set the variant
                     int variant = -1;
-                    ItemCuirass hauberk = item as ItemCuirass;
-                    ItemGauntlets gauntlets = item as ItemGauntlets;
-                    ItemGreaves greaves = item as ItemGreaves;
-                    ItemPauldronLeft leftPauldron = item as ItemPauldronLeft;
-                    ItemPauldronRight rightPauldron = item as ItemPauldronRight;
-                    ItemHelm helm = item as ItemHelm;
-                    ItemBoots boots = item as ItemBoots;
 
-                    if (hauberk != null)
-                        variant = hauberk.message;
-                    if (gauntlets != null)
-                        variant = gauntlets.message;
-                    if (greaves != null)
-                        variant = greaves.message;
-                    if (leftPauldron != null)
-                        variant = leftPauldron.message;
-                    if (rightPauldron != null)
-                        variant = rightPauldron.message;
-                    if (helm != null)
-                        variant = helm.message;
-                    if (boots != null)
-                        variant = boots.message;
+                    variant = item.message;
 
                     //item.SetItem(ItemGroups.None,templateIndex);
                     //ItemBuilder.ApplyArmorSettings(item, player.Gender, player.Race, (ArmorMaterialTypes)item.nativeMaterialValue, variant);
 
                     item.CurrentVariant = variant;
                 }
+                else if (IsCustomArmor(item))
+                {
+                    //is outdated custom armor
+                    //regenerate it
+                    itemsToRemove.Add(item);
+
+                    DaggerfallUnityItem newItem = null;
+
+                    bool equipped = item.IsEquipped;
+
+                    if (item is ItemCuirass)
+                        newItem = ItemBuilder.CreateItem(ItemGroups.Armor, 1300);
+                    else if (item is ItemGauntlets)
+                        newItem = ItemBuilder.CreateItem(ItemGroups.Armor, 1301);
+                    else if (item is ItemGreaves)
+                        newItem = ItemBuilder.CreateItem(ItemGroups.Armor, 1302);
+                    else if (item is ItemPauldronLeft)
+                        newItem = ItemBuilder.CreateItem(ItemGroups.Armor, 1303);
+                    else if (item is ItemPauldronRight)
+                        newItem = ItemBuilder.CreateItem(ItemGroups.Armor, 1304);
+                    else if (item is ItemHelm)
+                        newItem = ItemBuilder.CreateItem(ItemGroups.Armor, 1305);
+                    else if (item is ItemBoots)
+                        newItem = ItemBuilder.CreateItem(ItemGroups.Armor, 1306);
+
+                    if (newItem != null)
+                    {
+                        //set the variant
+                        int variant = item.message;
+
+                        //Debug.Log(newItem.ItemName + " variant is " + variant.ToString());
+
+                        ItemBuilder.ApplyArmorSettings(newItem, player.Gender, player.Race, (ArmorMaterialTypes)item.nativeMaterialValue, variant);
+
+                        newItem.currentCondition = item.currentCondition;
+
+                        if (item.HasLegacyEnchantments || item.HasCustomEnchantments)
+                        {
+                            if (item.HasLegacyEnchantments)
+                                newItem.legacyMagic = item.legacyMagic;
+
+                            if (item.HasCustomEnchantments)
+                                newItem.customMagic = item.customMagic;
+
+                            newItem.shortName = item.shortName;
+                        }
+
+                        collection.AddItem(newItem);
+
+                        if (item.IsIdentified)
+                            newItem.IdentifyItem();
+
+                        if (equipped && inventory)
+                            player.ItemEquipTable.EquipItem(newItem, true, false);
+                    }
+                }
+            }
+
+            if (itemsToRemove.Count > 0)
+            {
+                foreach (DaggerfallUnityItem item in itemsToRemove)
+                    collection.RemoveItem(item);
             }
         }
 
+        bool IsCustomArmor(DaggerfallUnityItem armor)
+        {
+            if (armor is ItemCuirass ||
+                armor is ItemGauntlets ||
+                armor is ItemGreaves ||
+                armor is ItemPauldronLeft ||
+                armor is ItemPauldronRight ||
+                armor is ItemHelm ||
+                armor is ItemBoots
+                )
+                return true;
+
+            return false;
+        }
 
         //old experiment to recolor objects with custom dyes
         public DFBitmap ChangeArmorDye(DFBitmap srcBitmap, ArmorMaterialTypes metal)
