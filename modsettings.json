@@ -7,8 +7,8 @@
             "IsAdvanced": false,
             "Keys": [
                 {
-                    "Min": 0.8,
-                    "Max": 1.2,
+                    "Min": 0.5,
+                    "Max": 5.0,
                     "Value": 1.0,
                     "Name": "Scale",
                     "Description": "Size of the sprite",
@@ -16,8 +16,8 @@
                     "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderFloatKey"
                 },
                 {
-                    "Min": -1.0,
-                    "Max": 1.0,
+                    "Min": -1.00,
+                    "Max": 1.00,
                     "Value": 0.5,
                     "Name": "OffsetHorizontal",
                     "Description": "Offsets the sprite relative to the left edge of the screen",
@@ -25,8 +25,8 @@
                     "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderFloatKey"
                 },
                 {
-                    "Min": -1.0,
-                    "Max": 1.0,
+                    "Min": -1.00,
+                    "Max": 1.00,
                     "Value": 0.5,
                     "Name": "OffsetVertical",
                     "Description": "Offsets the sprite relative to the bottom edge of the screen",
@@ -239,8 +239,153 @@
             "IsAdvanced": false,
             "Keys": [
                 {
+                    "Value": false,
+                    "Name": "AlternativeSpeed",
+                    "Description": "The shield will slow down at the beginning and speed up at the end, but I haven't tested it thoroughly / Щит будет замедляться в начале и ускоряться в конце, но я еще не проверил это тщательно",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.ToggleKey"
+                },
+                {
+                    "Min": 0.00,
+                    "Max": 50.00,
+                    "Value": 1.00,
+                    "Name": "AltSpeed",
+                    "Description": "The base value of the alternative speed to which acceleration is added / Базовое значение альтернативной скорости к которому прибавляется ускорение",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderFloatKey"
+                },
+                {
+                    "Value": false,
+                    "Name": "UnevenResize",
+                    "Description": "The shield now decreases to its calm state unevenly / Щит теперь уменьшаясь в спокойное состояние делает это неравномерно",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.ToggleKey"
+                },
+                {
+                    "Min": 0.00,
+                    "Max": 50.00,
+                    "Value": 1.00,
+                    "Name": "ForwardMultiplierBase",
+                    "Description": "Default value for alternative shield size change rate / Базовое значение альтернативной скорости изменения размера щита",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderFloatKey"
+                },
+                {
+                    "Min": 0.00,
+                    "Max": 50.00,
+                    "Value": 1.00,
+                    "Name": "ForwardSpeedMultiplier",
+                    "Description": "Shield size change rate multiplier / Множитель скорости изменения размера щита",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderFloatKey"
+                },
+                {
+                    "Value": false,
+                    "Name": "Fluctuations",
+                    "Description": "Includes slight shield fluctuations when resizing as it settles; not tested without UnevenResize / Включает небольшие колебания щита при изменении размера когда он успокаивается, не тестировалось без UnevenResize",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.ToggleKey"
+                },
+                {
+                    "Min": 0.00,
+                    "Max": 50.00,
+                    "Value": 1.00,
+                    "Name": "FluctuationsTime",
+                    "Description": "Time of fluctuations / Время колебаний",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderFloatKey"
+                },
+                {
+                    "Min": 0.00,
+                    "Max": 50.00,
+                    "Value": 1.00,
+                    "Name": "PeriodFluctuations",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderFloatKey"
+                },
+                {
+                    "Min": 0.00,
+                    "Max": 50.00,
+                    "Value": 1.00,
+                    "Name": "Amplitude",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderFloatKey"
+                },
+                {
+                    "Min": 0.00,
+                    "Max": 2.00,
+                    "Value": 1.00,
+                    "Name": "AmplitudeAttenuation",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderFloatKey"
+                },
+                {
+                    "Min": 0.00,
+                    "Max": 50.00,
+                    "Value": 1.00,
+                    "Name": "FluctuationsSpeed",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderFloatKey"
+                },
+                {
+                    "Min": 0.00,
+                    "Max": 6.00,
+                    "Value": 1.00,
+                    "Name": "MassMeaning",
+                    "Description": "Responsible for the default mass / Отвечает за массу по умолчанию",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderFloatKey"
+                },
+                {
+                    "Value": false,
+                    "Name": "DifferentShieldWeights",
+                    "Description": "Includes a mass that is responsible for accelerating and decelerating the shield; works only with AlternativeSpeed / Включает массу которая отвечает за ускорение и замедление щита работает только с AlternativeSpeed",
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.ToggleKey"
+                },
+                {
+                    "Min": 0.00,
+                    "Max": 6.00,
+                    "Value": 1.00,
+                    "Name": "BucklerMass",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderFloatKey"
+                },
+                {
+                    "Min": 0.00,
+                    "Max": 6.00,
+                    "Value": 1.0,
+                    "Name": "RoundShieldMass",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderFloatKey"
+                },
+                {
+                    "Min": 0.00,
+                    "Max": 6.00,
+                    "Value": 1.00,
+                    "Name": "KiteShieldMass",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderFloatKey"
+                },
+                {
+                    "Min": 0.00,
+                    "Max": 6.00,
+                    "Value": 1.00,
+                    "Name": "TowerShieldMass",
+                    "Description": null,
+                    "$version": "v1",
+                    "$type": "DaggerfallWorkshop.Game.Utility.ModSupport.ModSettings.SliderFloatKey"
+                },
+                {
                     "Min": 0.0,
-                    "Max": 2.0,
+                    "Max": 10.0,
                     "Value": 1.0,
                     "Name": "Scale",
                     "Description": "The maximum distance that the sprite will be offset",
@@ -258,7 +403,7 @@
                 },
                 {
                     "Min": 0.0,
-                    "Max": 2.0,
+                    "Max": 10.0,
                     "Value": 1.0,
                     "Name": "ForwardDepth",
                     "Description": "Multiplier for the change in scale when moving forward or backward",
@@ -341,7 +486,7 @@
             "Keys": [
                 {
                     "Min": 0.0,
-                    "Max": 2.0,
+                    "Max": 5.0,
                     "Value": 1.0,
                     "Name": "Scale",
                     "Description": "The amount the shield will recoil",

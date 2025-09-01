@@ -31,8 +31,8 @@ public class ShieldWidget : MonoBehaviour
 
     DaggerfallAudioSource audioSource;
 
-    const int nativeScreenWidth = 320;
-    const int nativeScreenHeight = 200;
+    int nativeScreenWidth = 256;
+    int nativeScreenHeight = 144;
 
     public Texture2D shieldTexture;
     public Texture2D[] shieldTextures;
@@ -57,6 +57,8 @@ public class ShieldWidget : MonoBehaviour
 
     float offsetX = 0.8f;           //distance from the texture's left edge the center of the screen
     float offsetY = 0.6f;           //distance from the texture's bottom edge to the bottom of the screen
+    public float offsetX2 = 0.8f;
+    public float offsetY2 = 0.6f;
     float scale = 1f;
     float scaleTextureFactor = 1f;
     float offsetSpeed = 100f;
@@ -85,8 +87,40 @@ public class ShieldWidget : MonoBehaviour
     float inertiaScale = 500;
     float inertiaSpeed = 50;
     float inertiaSpeedMod = 1;
+    float inertiaForwardSpeedMod = 1;
     float inertiaForwardSpeed = 1;
     float inertiaForwardScale = 1;
+    
+    bool alternativeSpeed;
+    bool EnableFluctuations;
+    bool unevenResize;
+    bool EnableMass;
+    float Mass;
+    float MassBuckler;
+    float MassRoundShield;
+    float MassKiteShield;
+    float MassTowerShield;
+    float AlternativeInertiaSpeed;
+    float forwardSpeedMultiplier;
+    float forwardMultiplierBase;
+    
+    
+    bool Fluctuations = false;
+    bool ResidualFluctuations = false;
+    float FluctuationsTime = 1f;
+    float FluctuationsTimeMultiplier;
+    float NextActionTime;
+    float Period = 0.5f;
+    Vector2 Amplitude;
+    float AmplitudeMultiplier;
+    float AmplitudeMultiplierAttenuation;
+    float fluctuationsSpeed;
+    float SpeedTime;
+    
+    Vector2 FluctuationsComparativeVector = new Vector2(0.02f, 0f);
+    
+    Vector2 RandomPosition;
+    Vector2 RandomPositionCurrent = Vector2.zero;
 
     bool recoil;
     float recoilScale = 1;
@@ -110,7 +144,8 @@ public class ShieldWidget : MonoBehaviour
     Vector2 bobSmooth = Vector2.zero;
 
     Vector2 inertiaCurrent = Vector2.zero;
-    Vector2 inertiaTarget;
+    Vector2 inertiaTarget = Vector2.zero;
+    Vector2 inertiaTargetOld = Vector2.zero;
 
     Vector2 inertiaForwardCurrent = Vector2.zero;
     Vector2 inertiaForwardTarget;
@@ -235,6 +270,8 @@ public class ShieldWidget : MonoBehaviour
         {
             offsetX = settings.GetValue<float>("Shield", "OffsetHorizontal");
             offsetY = settings.GetValue<float>("Shield", "OffsetVertical");
+            offsetX2 = offsetX;
+            offsetY2 = offsetY;
             scale = settings.GetValue<float>("Shield", "Scale");
             offsetSpeed = settings.GetValue<float>("Shield", "Speed") * 5000;
             whenSheathed = settings.GetValue<int>("Shield", "WhenSheathed");
@@ -265,6 +302,23 @@ public class ShieldWidget : MonoBehaviour
         }
         if (change.HasChanged("Inertia"))
         {
+			alternativeSpeed = settings.GetValue<bool>("Inertia", "AlternativeSpeed");
+			unevenResize = settings.GetValue<bool>("Inertia", "UnevenResize");
+			EnableFluctuations = settings.GetValue<bool>("Inertia", "Fluctuations");
+			FluctuationsTimeMultiplier = settings.GetValue<float>("Inertia", "FluctuationsTime");
+			EnableMass = settings.GetValue<bool>("Inertia", "DifferentShieldWeights");
+			Period = settings.GetValue<float>("Inertia", "PeriodFluctuations") * 0.5f;
+			AmplitudeMultiplier = settings.GetValue<float>("Inertia", "Amplitude") * 3f;
+			AmplitudeMultiplierAttenuation = settings.GetValue<float>("Inertia", "AmplitudeAttenuation") * -0.5f;
+			fluctuationsSpeed = settings.GetValue<float>("Inertia", "FluctuationsSpeed") * 4.5f;
+			forwardSpeedMultiplier = settings.GetValue<float>("Inertia", "ForwardSpeedMultiplier") * (1f / 3f);
+			forwardMultiplierBase = settings.GetValue<float>("Inertia", "ForwardMultiplierBase") * 3;
+			AlternativeInertiaSpeed = settings.GetValue<float>("Inertia", "AltSpeed") * 0.25f;
+			Mass = settings.GetValue<float>("Inertia", "MassMeaning") * 312; 
+			MassBuckler = settings.GetValue<float>("Inertia", "BucklerMass") * 234;
+			MassRoundShield = settings.GetValue<float>("Inertia", "RoundShieldMass") * 265.2f;
+			MassKiteShield = settings.GetValue<float>("Inertia", "KiteShieldMass") * 312;
+			MassTowerShield = settings.GetValue<float>("Inertia", "TowerShieldMass") * 358.8f;
             inertiaScale = settings.GetValue<float>("Inertia", "Scale") * 500;
             inertiaSpeed = settings.GetValue<float>("Inertia", "Speed") * 500;
             inertiaForwardScale = settings.GetValue<float>("Inertia", "ForwardDepth") * 0.2f;
@@ -331,6 +385,8 @@ public class ShieldWidget : MonoBehaviour
     //Only run when the shield has changed
     void UpdateShieldTextures(DaggerfallUnityItem shield)
     {
+		offsetX = offsetX2;
+		offsetY = offsetY2;
         Debug.Log("Updating shield textures");
         int shieldType = 0;
         int shieldMaterial = 0;
@@ -338,15 +394,46 @@ public class ShieldWidget : MonoBehaviour
         {
             case (int)Armor.Buckler:
                 shieldType = 0;
+                nativeScreenWidth = 3072;
+                nativeScreenHeight = 1728;
+                offsetX-=0.1f;
+                offsetY+=0.5f;
+                if (EnableMass && alternativeSpeed)
+                {
+					Mass = MassBuckler;
+				}
                 break;
             case (int)Armor.Round_Shield:
                 shieldType = 150;
+                nativeScreenWidth = 2560;
+                nativeScreenHeight = 1440;
+                offsetX-=0.4f;
+                if (EnableMass && alternativeSpeed)
+                {
+					Mass = MassRoundShield;
+				}
                 break;
             case (int)Armor.Kite_Shield:
                 shieldType = 300;
+                nativeScreenWidth = 1829;
+                nativeScreenHeight = 1029;
+                offsetX-=0.15f;
+                offsetY-=0.2f;
+                if (EnableMass && alternativeSpeed)
+                {
+					Mass = MassKiteShield;
+				}
                 break;
             case (int)Armor.Tower_Shield:
                 shieldType = 450;
+                nativeScreenWidth = 1829;
+                nativeScreenHeight = 1029;
+                offsetX-=0.125f;
+                offsetY-=0.175f;
+                if (EnableMass && alternativeSpeed)
+                {
+					Mass = MassTowerShield;
+				}
                 break;
         }
         switch (shield.NativeMaterialValue)
@@ -401,6 +488,7 @@ public class ShieldWidget : MonoBehaviour
         indexCurrent = shieldType + shieldMaterial;
 
         shieldTexture = shieldTextures[indexCurrent+frameCurrent];
+        shieldTexture.filterMode = FilterMode.Bilinear;
     }
 
     private void OnGUI()
@@ -649,6 +737,7 @@ public class ShieldWidget : MonoBehaviour
                     inertiaForwardTarget = Vector2.zero;
                 } else
                 {
+					inertiaTargetOld = inertiaTarget;
                     float mod = 1;
 
                     Vector3 MoveDirectionLocal = GameManager.Instance.PlayerObject.transform.InverseTransformVector(GameManager.Instance.PlayerMotor.MoveDirection);
@@ -658,13 +747,28 @@ public class ShieldWidget : MonoBehaviour
                     if (!GameManager.Instance.PlayerMotor.IsGrounded)
                         speedY = Mathf.Clamp(MoveDirectionLocal.y / 10, -1, 1);
                     float speedZ = Mathf.Clamp(MoveDirectionLocal.z / 10, -1, 1);
+                    if (speedZ != 0 && EnableFluctuations)
+                    {
+						SpeedTime += Time.deltaTime;
+						if (Fluctuations)
+						    Fluctuations = false;
+					}
+					
 
                     if (GameManager.Instance.PlayerMouseLook.cursorActive || InputManager.Instance.HasAction(InputManager.Actions.SwingWeapon))
                         inertiaTarget = new Vector2(-speedX * 0.5f * inertiaScale, 0);
                     else
                         inertiaTarget = new Vector2(-(InputManager.Instance.LookX + speedX) * 0.5f * inertiaScale, (InputManager.Instance.LookY + speedY) * 0.5f * inertiaScale);
-
-                    inertiaSpeedMod = Vector2.Distance(inertiaCurrent, inertiaTarget) / inertiaScale;
+                    
+                    if (alternativeSpeed)
+                    {
+                        inertiaSpeedMod = Mathf.Abs(-Vector2.Distance(inertiaCurrent, inertiaTarget) + 0.25f) / Mass + AlternativeInertiaSpeed;
+                    }
+                    else
+                    {
+					    inertiaSpeedMod = Vector2.Distance(inertiaCurrent, inertiaTarget) / inertiaScale;
+					}
+                      
 
                     if (inertiaTarget != Vector2.zero)
                         mod = 3;
@@ -677,10 +781,53 @@ public class ShieldWidget : MonoBehaviour
 
                     if (inertiaForwardTarget != Vector2.zero)
                         mod = 3;
-
+                        
                     inertiaForwardTarget = Vector2.one * speedZ * inertiaForwardScale;
-                    inertiaForwardCurrent = Vector2.MoveTowards(inertiaForwardCurrent, inertiaForwardTarget, Time.deltaTime * inertiaForwardSpeed * mod);
-
+                    
+                    inertiaForwardSpeedMod = 1;
+                    
+                    if (Fluctuations)
+					{
+						
+						FluctuationsTime -= Time.deltaTime;
+						if ( FluctuationsTime > 0 )
+						{
+							if (Time.time > NextActionTime )
+							{
+								NextActionTime += Period;
+								Amplitude = Amplitude * AmplitudeMultiplierAttenuation;
+							}
+							inertiaForwardTarget += Amplitude;
+							inertiaForwardSpeedMod = Vector2.Distance(inertiaForwardCurrent, inertiaForwardTarget) * fluctuationsSpeed;
+						}
+						else
+						{
+						    Fluctuations = false;
+						    ResidualFluctuations = true;
+						}
+					}
+                    
+                    if (speedZ == 0f && Fluctuations == false && unevenResize)
+                    {
+						inertiaForwardSpeedMod = -Mathf.Abs(-Vector2.Distance(inertiaForwardCurrent, inertiaForwardTarget) + 1.75f) * forwardSpeedMultiplier + forwardMultiplierBase;
+					}
+					
+					if (speedZ == 0f && ResidualFluctuations)
+					   inertiaForwardSpeedMod = Vector2.Distance(inertiaForwardCurrent, inertiaForwardTarget) * fluctuationsSpeed;
+					   if (Vector2.Distance(inertiaForwardCurrent, inertiaForwardTarget) == 0)
+					       ResidualFluctuations = false;
+                    
+                    inertiaForwardCurrent = Vector2.MoveTowards(inertiaForwardCurrent, inertiaForwardTarget, Time.deltaTime * inertiaForwardSpeedMod * inertiaForwardSpeed * mod);
+					    
+					if (Mathf.Abs(inertiaForwardCurrent.x) <= FluctuationsComparativeVector.x && !Fluctuations && speedZ == 0 && inertiaForwardCurrent != Vector2.zero && EnableFluctuations)
+					{
+					    Fluctuations = true;
+					    Amplitude = inertiaForwardCurrent * AmplitudeMultiplier;
+					    NextActionTime = Time.time;
+					    FluctuationsTime = Mathf.Clamp(SpeedTime, 0, 1) * FluctuationsTimeMultiplier; 
+					    SpeedTime = 0;
+					}
+					    
                     Scale += inertiaForwardCurrent;
                     //Offset += inertiaForwardCurrent * 0.5f;
                 }
@@ -751,11 +898,11 @@ public class ShieldWidget : MonoBehaviour
 
         if (stepTransforms)
         {
-            float length = stepLength * (screenRect.height / 64);
+            float length = stepLength * (screenRect.height / 464);
             shieldPositionOffset.x = Snapping.Snap(shieldPositionOffset.x, length);
             shieldPositionOffset.y = Snapping.Snap(shieldPositionOffset.y, length);
         }
-
+        
         return shieldPositionOffset;
     }
 
